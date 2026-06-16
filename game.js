@@ -803,6 +803,15 @@
   function drawUFO(f) {
     const x = f.x, y = f.y;
     const w = f.r * 2.0;
+    // 暗い輪郭で空(昼/夜)から浮き立たせる
+    ctx.fillStyle = "rgba(6,5,18,0.9)";
+    ctx.beginPath();
+    ctx.arc(x, y - 1, f.r * 0.75 + 1.2, Math.PI, 0);
+    ctx.closePath();
+    ctx.fill();
+    ctx.beginPath();
+    ctx.ellipse(x, y, w + 1.6, f.r * 0.6 + 1.6, 0, 0, Math.PI * 2);
+    ctx.fill();
     // ドーム
     ctx.fillStyle = f.def.accent;
     ctx.beginPath();
@@ -1058,20 +1067,21 @@
     gameoverScreen.classList.remove("hidden");
   }
 
-  // スコア共有(URLは含めない)
+  // スコア共有(URLを含めてSNSでフィーチャーグラフィックのOGカードが出るように)
+  const SHARE_URL = "https://tmk4men.github.io/bomb-rain-defense/";
   function shareScore() {
     const text = "UFOスマッシュ！でスコア " + score + "点を出した！🛸";
     if (navigator.share) {
-      navigator.share({ text }).catch(() => {});
+      navigator.share({ title: "UFOスマッシュ！", text, url: SHARE_URL }).catch(() => {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
-      navigator.clipboard.writeText(text).then(() => {
+      navigator.clipboard.writeText(text + "\n" + SHARE_URL).then(() => {
         if (!shareBtn) return;
         const o = shareBtn.textContent;
-        shareBtn.textContent = "コピーしました！";
+        shareBtn.textContent = "COPIED!";
         setTimeout(() => { shareBtn.textContent = o; }, 1400);
-      }).catch(() => fallbackShare(text));
+      }).catch(() => fallbackShare(text + "\n" + SHARE_URL));
     } else {
-      fallbackShare(text);
+      fallbackShare(text + "\n" + SHARE_URL);
     }
   }
   function fallbackShare(text) {
@@ -1093,6 +1103,19 @@
   window.addEventListener("orientationchange", resize);
   document.addEventListener("fullscreenchange", resize);
   document.addEventListener("webkitfullscreenchange", resize);
+
+  // アプリを閉じて(バックグラウンド/ホーム画面に戻った)らBGMを止める。復帰時に再開。
+  let bgmWasPlaying = false;
+  document.addEventListener("visibilitychange", () => {
+    if (document.hidden) {
+      bgmWasPlaying = !!(bgm && !bgm.paused);
+      if (bgm) bgm.pause();
+    } else if (bgmWasPlaying && bgmOn) {
+      playBgm();
+    }
+  });
+  // visibilitychange が来ないケース(アプリ終了など)の保険
+  window.addEventListener("pagehide", () => { if (bgm) bgm.pause(); });
 
   updateBgmBtn();
   renderRanks(homeRanksEl);

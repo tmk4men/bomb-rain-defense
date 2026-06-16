@@ -15,9 +15,9 @@
   <meta property="og:title" content="UFOスマッシュ！（UFO SMASH!）" />
   <meta property="og:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
   <meta property="og:url" content="https://tmk4men.github.io/bomb-rain-defense/" />
-  <meta property="og:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
-  <meta property="og:image:width" content="1200" />
-  <meta property="og:image:height" content="630" />
+  <meta property="og:image" content="https://tmk4men.github.io/bomb-rain-defense/feature-graphic.png?v=14" />
+  <meta property="og:image:width" content="1024" />
+  <meta property="og:image:height" content="500" />
   <meta property="og:image:alt" content="UFO SMASH! のタイトル画面" />
   <meta property="og:locale" content="ja_JP" />
 
@@ -25,19 +25,19 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="UFOスマッシュ！（UFO SMASH!）" />
   <meta name="twitter:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
-  <meta name="twitter:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
+  <meta name="twitter:image" content="https://tmk4men.github.io/bomb-rain-defense/feature-graphic.png?v=14" />
 
   <!-- PWA -->
   <meta name="theme-color" content="#0b0818" />
-  <link rel="manifest" href="manifest.webmanifest?v=12" />
-  <link rel="apple-touch-icon" href="icon-192.png?v=12" />
+  <link rel="manifest" href="manifest.webmanifest?v=14" />
+  <link rel="apple-touch-icon" href="icon-192.png?v=14" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
   <meta name="apple-mobile-web-app-title" content="UFOスマッシュ" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=13" />
+  <link rel="stylesheet" href="style.css?v=14" />
 </head>
 <body>
   <div class="crt">
@@ -75,6 +75,9 @@
               <button id="fsBtn" class="btn-sm">フルスクリーン</button>
               <button id="homeBtn" class="btn-sm">ホームへ</button>
             </div>
+            <a id="creditLink" class="credit"
+               href="https://www.threads.com/@ktomo_dev?igshid=NTc4MTIwNjQ2YQ=="
+               target="_blank" rel="noopener noreferrer">製作者 @ktomo_dev</a>
           </div>
         </div>
 
@@ -88,8 +91,8 @@
             <ol id="goRanks" class="ranks"></ol>
             <button id="retryBtn">RETRY</button>
             <div class="menu-actions">
-              <button id="shareBtn" class="btn-sm">スコアを共有</button>
-              <button id="toHomeBtn" class="btn-sm">ホームへ</button>
+              <button id="shareBtn" class="btn-sm btn-en">SHARE</button>
+              <button id="toHomeBtn" class="btn-sm btn-en">HOME</button>
             </div>
           </div>
         </div>
@@ -98,6 +101,6 @@
   </div>
 
   <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
-  <script src="game.js?v=13"></script>
+  <script src="game.js?v=14"></script>
 </body>
 </html>

@@ -319,6 +319,29 @@ button:active {
   min-height: 44px;
 }
 
+/* SHARE / HOME など英字の小ボタンは周囲のピクセル英字フォントに合わせる */
+.btn-en {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.62rem;
+  letter-spacing: 1px;
+}
+
+/* 製作者リンク(メニュー内) */
+.credit {
+  display: inline-block;
+  margin-top: 16px;
+  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", sans-serif;
+  font-size: 0.8rem;
+  color: var(--cyan, #7ef0ff);
+  text-decoration: none;
+  border-bottom: 1px dotted currentColor;
+  padding-bottom: 1px;
+}
+.credit:hover,
+.credit:focus-visible {
+  color: #fff;
+}
+
 /* キーボード操作時のフォーカス可視化 */
 button:focus-visible {
   outline: 3px solid #7ef0ff;
