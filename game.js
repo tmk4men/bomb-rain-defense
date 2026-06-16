@@ -38,6 +38,7 @@
   const toHomeBtn = document.getElementById("toHomeBtn");
   const bgm = document.getElementById("bgm");
   const bgmBtn = document.getElementById("bgmBtn");
+  const shareBtn = document.getElementById("shareBtn");
   const finalScoreEl = document.getElementById("finalScore");
   const homeRanksEl = document.getElementById("homeRanks");
   const goRanksEl = document.getElementById("goRanks");
@@ -45,7 +46,8 @@
   // ---- 定数(ドット空間) ----
   let GROUND_Y = H - 30;
   const ANCHOR = { x: W / 2, y: GROUND_Y - 22 };
-  const MAX_PULL = 36;
+  const MAX_PULL_X = 64; // 左右に大きく引ける
+  const MAX_PULL_Y = 46;
   const LAUNCH_POWER = 0.2;
   const GRAVITY = 0.085;
   const BALL_R = 3;
@@ -197,11 +199,34 @@
   let aiming = false;
   let pull = { x: 0, y: 0 };
 
+  // ---- ホーム画面の背景演出 ----
+  let tick = 0; // 状態に関わらず毎フレーム進むアニメ用カウンタ
+  const stars = [];
+  const homeUfos = [];
+  function initHomeDecor() {
+    stars.length = 0;
+    for (let i = 0; i < 60; i++) {
+      stars.push({
+        nx: Math.random(),
+        ny: Math.random() * 0.82,
+        ph: Math.random() * Math.PI * 2,
+        s: Math.random() < 0.25 ? 2 : 1,
+      });
+    }
+    homeUfos.length = 0;
+    const defs = [
+      { def: TYPES.ufo, r: 8, ny: 0.20, speed: 0.10, start: 0.10 },
+      { def: TYPES.fast, r: 6, ny: 0.36, speed: 0.16, start: 0.50 },
+      { def: TYPES.ufo, r: 7, ny: 0.14, speed: 0.07, start: 0.82 },
+    ];
+    for (const d of defs) homeUfos.push({ def: d.def, r: d.r, ny: d.ny, speed: d.speed, start: d.start, x: 0, y: 0, blink: 0 });
+  }
+
   // ============================================================
   function resetGame() {
     score = 0;
     elapsed = 0;
-    spawnTimer = 50;
+    spawnTimer = 90; // 開始直後は少し待ってから
     fallers = [];
     balls = [];
     particles = [];
@@ -246,18 +271,22 @@
   // ============================================================
   // スポーン
   // ============================================================
+  // 難易度: 約120秒かけて少しずつ最大へ
+  function difficulty() {
+    return Math.min(elapsed / 7200, 1);
+  }
+
   function pickType() {
-    const diff = Math.min(elapsed / 3600, 1);
-    return Math.random() < 0.45 + 0.25 * diff ? "fast" : "ufo";
+    return Math.random() < 0.30 + 0.30 * difficulty() ? "fast" : "ufo";
   }
 
   function spawn() {
     const type = pickType();
     const def = TYPES[type];
     const x = 16 + Math.random() * (W - 32);
-    const diff = Math.min(elapsed / 3600, 1);
-    let speed = 0.17 + diff * 0.4 + Math.random() * 0.11; // ゆっくりめ
-    if (type === "fast") speed *= 1.6;
+    const diff = difficulty();
+    let speed = 0.15 + diff * 0.4 + Math.random() * 0.09; // 序盤はゆっくり
+    if (type === "fast") speed *= 1.55;
     fallers.push({
       type, def,
       x, baseX: x,
@@ -333,11 +362,11 @@
     if (shake > 0) shake--;
 
     spawnTimer--;
-    const diff = Math.min(elapsed / 3600, 1);
-    const interval = Math.max(28, 80 - diff * 50);
+    const diff = difficulty();
+    const interval = Math.max(34, 120 - diff * 86); // 序盤は間隔広め→徐々に短く
     if (spawnTimer <= 0) {
       spawn();
-      spawnTimer = interval + Math.random() * 24;
+      spawnTimer = interval + Math.random() * 26;
     }
 
     // UFO
@@ -409,29 +438,38 @@
   // 描画
   // ============================================================
   function draw() {
+    tick++;
+    const night = state === "home";
+
     let ox = 0, oy = 0;
     if (shake > 0) {
       ox = (Math.sin(elapsed * 2.3) * shake) | 0;
       oy = (Math.cos(elapsed * 1.9) * shake * 0.6) | 0;
     }
 
-    drawSky();
+    drawSky(night);
     drawClouds();
+    if (night) drawStarsMoon();
 
     ctx.save();
     ctx.translate(ox, oy);
 
-    ctx.fillStyle = "#5fae34";
+    ctx.fillStyle = night ? "#3f6a3a" : "#5fae34";
     ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y);
-    ctx.fillStyle = "#7bd047";
+    ctx.fillStyle = night ? "#56933f" : "#7bd047";
     ctx.fillRect(0, GROUND_Y + 4, W, 3);
-    ctx.fillStyle = "#3d7322";
+    ctx.fillStyle = "#2c5a1c";
     for (let x = 0; x < W; x += 6) {
       ctx.fillRect(x + ((x / 6) % 2), GROUND_Y + 10, 2, 2);
     }
 
-    for (const p of people) drawPerson(p);
-    for (const f of fallers) drawUFO(f);
+    if (night) {
+      drawHomeUfos();
+      drawDecorPeople();
+    } else {
+      for (const p of people) drawPerson(p);
+      for (const f of fallers) drawUFO(f);
+    }
     for (const ball of balls) drawBall(ball);
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
@@ -459,8 +497,10 @@
     vctx.drawImage(buf, 0, 0, W, H, 0, 0, view.width, view.height);
   }
 
-  function drawSky() {
-    const bands = ["#243b6b", "#33538f", "#4a72b0", "#7aa3d0", "#bfe0ef"];
+  function drawSky(night) {
+    const bands = night
+      ? ["#0a1430", "#11214a", "#1c3160", "#27406e", "#34527f"]
+      : ["#243b6b", "#33538f", "#4a72b0", "#7aa3d0", "#bfe0ef"];
     const h = Math.ceil(GROUND_Y / bands.length);
     for (let i = 0; i < bands.length; i++) {
       ctx.fillStyle = bands[i];
@@ -468,9 +508,56 @@
     }
   }
 
+  // ホーム背景: 星と月
+  function drawStarsMoon() {
+    for (const s of stars) {
+      const tw = 0.45 + 0.55 * Math.sin(tick * 0.05 + s.ph);
+      ctx.globalAlpha = Math.max(0.15, tw);
+      ctx.fillStyle = "#ffffff";
+      ctx.fillRect((s.nx * W) | 0, (s.ny * GROUND_Y) | 0, s.s, s.s);
+    }
+    ctx.globalAlpha = 1;
+    const mx = (W * 0.82) | 0, my = (GROUND_Y * 0.2) | 0, mr = Math.max(7, (H * 0.05) | 0);
+    disc(mx, my, mr, "#f3eeb6");
+    ctx.fillStyle = "rgba(0,0,0,0.12)";
+    ctx.fillRect(mx - 2, my - 1, 2, 2);
+    ctx.fillRect(mx + 1, my + 2, 2, 2);
+    ctx.fillRect(mx - 3, my + 2, 1, 1);
+  }
+
+  // ホーム背景: 漂うUFO(ビーム付き)
+  function drawHomeUfos() {
+    const range = W + 80;
+    for (const u of homeUfos) {
+      u.x = ((u.start * range + tick * u.speed) % range) - 40;
+      u.y = u.ny * GROUND_Y;
+      u.blink = tick * 0.2;
+      const w = u.r * 2.0;
+      ctx.fillStyle = "rgba(126,240,255,0.12)";
+      ctx.beginPath();
+      ctx.moveTo(u.x - w * 0.5, u.y);
+      ctx.lineTo(u.x + w * 0.5, u.y);
+      ctx.lineTo(u.x + w * 1.1, GROUND_Y + 4);
+      ctx.lineTo(u.x - w * 1.1, GROUND_Y + 4);
+      ctx.closePath();
+      ctx.fill();
+      drawUFO(u);
+    }
+  }
+
+  // ホーム背景: 手を振る人々
+  function drawDecorPeople() {
+    const margin = Math.round(W * 0.14);
+    const span = Math.max(1, W - margin * 2);
+    const gap = span / (PEOPLE_COUNT - 1);
+    for (let i = 0; i < PEOPLE_COUNT; i++) {
+      drawPerson({ x: Math.round(margin + gap * i), alive: true });
+    }
+  }
+
   function drawClouds() {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    const t = elapsed * 0.08;
+    const t = tick * 0.08;
     const cs = [
       { x: 24, y: 26, s: 1 },
       { x: 110, y: 46, s: 1.3 },
@@ -545,7 +632,7 @@
     ctx.fillRect(x + 1, baseY - 4, 2, 4);
     ctx.fillStyle = COL.red;
     ctx.fillRect(x - 3, baseY - 9, 6, 6);
-    const wave = Math.sin(elapsed * 0.15 + x) > 0 ? -1 : 0;
+    const wave = Math.sin(tick * 0.15 + x) > 0 ? -1 : 0;
     ctx.fillRect(x - 4, baseY - 9, 1, 4);
     ctx.fillRect(x + 3, baseY - 9 + wave, 1, 4);
     ctx.fillStyle = "#ffcf9e";
@@ -679,8 +766,9 @@
   function updatePull(p) {
     let dx = p.x - ANCHOR.x;
     let dy = p.y - ANCHOR.y;
-    const len = Math.hypot(dx, dy);
-    if (len > MAX_PULL) { dx = (dx / len) * MAX_PULL; dy = (dy / len) * MAX_PULL; }
+    // 左右と上下で別々に制限(横に大きく引ける)
+    dx = Math.max(-MAX_PULL_X, Math.min(MAX_PULL_X, dx));
+    dy = Math.max(-MAX_PULL_Y, Math.min(MAX_PULL_Y, dy));
     pull = { x: dx, y: dy };
   }
 
@@ -727,13 +815,14 @@
     menuOpen = false;
     menuScreen.classList.add("hidden");
     gameoverScreen.classList.add("hidden");
-    menuBtn.classList.add("hidden");
+    menuBtn.classList.remove("hidden"); // ホームでもメニューを出す
     renderRanks(homeRanksEl);
     homeScreen.classList.remove("hidden");
   }
   function openMenu() {
-    if (state !== "playing") return;
+    if (state === "gameover") return;
     menuOpen = true;
+    if (homeBtn) homeBtn.style.display = state === "playing" ? "" : "none"; // ホームでは「ホームへ」を隠す
     menuScreen.classList.remove("hidden");
   }
   function closeMenu() {
@@ -750,8 +839,24 @@
     gameoverScreen.classList.remove("hidden");
   }
 
+  // スコア共有(URLは含めない)
+  function shareScore() {
+    const text = "UFOスマッシュ！でスコア " + score + "点を出した！🛸";
+    if (navigator.share) {
+      navigator.share({ text }).catch(() => {});
+    } else if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+        if (!shareBtn) return;
+        const o = shareBtn.textContent;
+        shareBtn.textContent = "コピーしました！";
+        setTimeout(() => { shareBtn.textContent = o; }, 1400);
+      }).catch(() => {});
+    }
+  }
+
   startBtn.addEventListener("click", startGame);
   retryBtn.addEventListener("click", startGame);
+  if (shareBtn) shareBtn.addEventListener("click", shareScore);
   resumeBtn.addEventListener("click", closeMenu);
   homeBtn.addEventListener("click", goHome);
   toHomeBtn.addEventListener("click", goHome);
@@ -766,6 +871,7 @@
 
   updateBgmBtn();
   renderRanks(homeRanksEl);
+  initHomeDecor();
   resize();
   loop();
 })();

@@ -29,7 +29,7 @@
 
   <!-- PWA -->
   <meta name="theme-color" content="#0b0818" />
-  <link rel="manifest" href="manifest.webmanifest?v=8" />
+  <link rel="manifest" href="manifest.webmanifest?v=9" />
   <link rel="apple-touch-icon" href="icon-192.png" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black" />
@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=8" />
+  <link rel="stylesheet" href="style.css?v=9" />
 </head>
 <body>
   <div class="crt">
@@ -46,7 +46,7 @@
         <canvas id="game" width="480" height="642"></canvas>
 
         <!-- ハンバーガーメニューボタン(ゲーム中のみ表示) -->
-        <button id="menuBtn" class="menu-btn hidden" aria-label="メニュー" title="メニュー">
+        <button id="menuBtn" class="menu-btn" aria-label="メニュー" title="メニュー">
           <span></span><span></span><span></span>
         </button>
 
@@ -54,7 +54,6 @@
         <div id="home" class="screen">
           <div class="home-inner">
             <h1>UFO SMASH!</h1>
-            <p class="subtitle">UFOスマッシュ！</p>
             <p class="ranks-title">BEST 3</p>
             <ol id="homeRanks" class="ranks"></ol>
             <button id="startBtn">START</button>
@@ -87,7 +86,10 @@
             <p class="ranks-title">BEST 3</p>
             <ol id="goRanks" class="ranks"></ol>
             <button id="retryBtn">RETRY</button>
-            <button id="toHomeBtn" class="btn-sm">ホームへ</button>
+            <div class="menu-actions">
+              <button id="shareBtn" class="btn-sm">スコアを共有</button>
+              <button id="toHomeBtn" class="btn-sm">ホームへ</button>
+            </div>
           </div>
         </div>
       </div>
@@ -95,6 +97,6 @@
   </div>
 
   <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
-  <script src="game.js?v=8"></script>
+  <script src="game.js?v=9"></script>
 </body>
 </html>
