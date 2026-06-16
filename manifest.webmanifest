@@ -1,0 +1,18 @@
+{
+  "id": "io.github.tmk4men.ufosmash",
+  "name": "UFOスマッシュ！",
+  "short_name": "UFOスマッシュ",
+  "description": "空から襲来するUFOを撃ち落として人々を守るドット絵アクションゲーム。",
+  "lang": "ja",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#0b0818",
+  "theme_color": "#0b0818",
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -36,6 +36,8 @@
   const fsBtn = document.getElementById("fsBtn");
   const homeBtn = document.getElementById("homeBtn");
   const toHomeBtn = document.getElementById("toHomeBtn");
+  const bgm = document.getElementById("bgm");
+  const bgmBtn = document.getElementById("bgmBtn");
   const finalScoreEl = document.getElementById("finalScore");
   const homeRanksEl = document.getElementById("homeRanks");
   const goRanksEl = document.getElementById("goRanks");
@@ -154,6 +156,28 @@
       },
     };
   })();
+
+  // ============================================================
+  // BGM
+  // ============================================================
+  const BGM_KEY = "bombRainBgm";
+  let bgmOn = localStorage.getItem(BGM_KEY) !== "0";
+  if (bgm) bgm.volume = 0.4;
+  function updateBgmBtn() {
+    if (bgmBtn) bgmBtn.textContent = "BGM: " + (bgmOn ? "ON" : "OFF");
+  }
+  function playBgm() {
+    if (!bgm || !bgmOn) return;
+    const p = bgm.play();
+    if (p && p.catch) p.catch(() => {});
+  }
+  function toggleBgm() {
+    bgmOn = !bgmOn;
+    try { localStorage.setItem(BGM_KEY, bgmOn ? "1" : "0"); } catch (e) {}
+    if (bgmOn) playBgm();
+    else if (bgm) bgm.pause();
+    updateBgmBtn();
+  }
 
   // ---- 状態 ----
   let state = "home"; // home | playing | gameover
@@ -688,6 +712,7 @@
   // ============================================================
   function startGame() {
     Sound.init();
+    playBgm();
     resetGame();
     state = "playing";
     menuOpen = false;
@@ -732,12 +757,14 @@
   toHomeBtn.addEventListener("click", goHome);
   fsBtn.addEventListener("click", toggleFullscreen);
   menuBtn.addEventListener("click", () => (menuOpen ? closeMenu() : openMenu()));
+  if (bgmBtn) bgmBtn.addEventListener("click", toggleBgm);
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);
   document.addEventListener("fullscreenchange", resize);
   document.addEventListener("webkitfullscreenchange", resize);
 
+  updateBgmBtn();
   renderRanks(homeRanksEl);
   resize();
   loop();

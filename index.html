@@ -6,32 +6,38 @@
   <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
-  <title>ボムレイン・ディフェンス</title>
+  <title>UFOスマッシュ！</title>
   <meta name="description" content="空から襲来するUFOを撃ち落として人々を守るドット絵アクションゲーム。パチンコで狙い撃ち、コンボでハイスコアを目指せ！" />
 
   <!-- Open Graph Protocol -->
   <meta property="og:type" content="website" />
-  <meta property="og:site_name" content="ボムレイン・ディフェンス" />
-  <meta property="og:title" content="ボムレイン・ディフェンス（BOMB RAIN DEFENSE）" />
+  <meta property="og:site_name" content="UFOスマッシュ！" />
+  <meta property="og:title" content="UFOスマッシュ！（UFO SMASH!）" />
   <meta property="og:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
   <meta property="og:url" content="https://tmk4men.github.io/bomb-rain-defense/" />
   <meta property="og:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
   <meta property="og:image:width" content="1200" />
   <meta property="og:image:height" content="630" />
-  <meta property="og:image:alt" content="BOMB RAIN ボムレイン・ディフェンスのタイトル画面" />
+  <meta property="og:image:alt" content="UFO SMASH! のタイトル画面" />
   <meta property="og:locale" content="ja_JP" />
 
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="ボムレイン・ディフェンス（BOMB RAIN DEFENSE）" />
+  <meta name="twitter:title" content="UFOスマッシュ！（UFO SMASH!）" />
   <meta name="twitter:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
   <meta name="twitter:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
 
-  <meta name="theme-color" content="#0d0a1f" />
+  <!-- PWA -->
+  <meta name="theme-color" content="#0b0818" />
+  <link rel="manifest" href="manifest.webmanifest?v=8" />
+  <link rel="apple-touch-icon" href="icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black" />
+  <meta name="apple-mobile-web-app-title" content="UFOスマッシュ" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=6" />
+  <link rel="stylesheet" href="style.css?v=8" />
 </head>
 <body>
   <div class="crt">
@@ -47,8 +53,8 @@
         <!-- ホーム画面 -->
         <div id="home" class="screen">
           <div class="home-inner">
-            <h1>BOMB RAIN</h1>
-            <p class="subtitle">ボムレイン・ディフェンス</p>
+            <h1>UFO SMASH!</h1>
+            <p class="subtitle">UFOスマッシュ！</p>
             <p class="ranks-title">BEST 3</p>
             <ol id="homeRanks" class="ranks"></ol>
             <button id="startBtn">START</button>
@@ -66,6 +72,7 @@
             </ul>
             <div class="menu-actions">
               <button id="resumeBtn">とじる</button>
+              <button id="bgmBtn" class="btn-sm">BGM: ON</button>
               <button id="fsBtn" class="btn-sm">フルスクリーン</button>
               <button id="homeBtn" class="btn-sm">ホームへ</button>
             </div>
@@ -87,6 +94,7 @@
     </div>
   </div>
 
-  <script src="game.js?v=6"></script>
+  <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
+  <script src="game.js?v=8"></script>
 </body>
 </html>
