@@ -174,10 +174,6 @@ canvas {
 .ico-fast { background: #3aa0ff; border-radius: 50%; }
 .ico-armor { background: #9aa6bd; border-radius: 50%; box-shadow: inset 0 0 0 2px #5c6a85; }
 .ico-gold { background: #ffd23e; border-radius: 50%; box-shadow: inset 0 0 0 2px #b8851a; }
-.ico-heart { background: var(--pink); clip-path: polygon(50% 100%, 0 35%, 25% 0, 50% 22%, 75% 0, 100% 35%); }
-.ico-star { background: var(--gold); clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
-.ico-freeze { background: #7ef0ff; clip-path: polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%); }
-.ico-nuke { background: #ff7a1a; border-radius: 50%; box-shadow: inset 0 0 0 2px #ffd23e; }
 
 .score-line {
   font-family: "Press Start 2P", monospace;

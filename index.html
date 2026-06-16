@@ -3,8 +3,11 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate" />
+  <meta http-equiv="Pragma" content="no-cache" />
+  <meta http-equiv="Expires" content="0" />
   <title>ボムレイン・ディフェンス</title>
-  <meta name="description" content="空から降るボム兵を撃ち落として花ばたけを守るドット絵アクション。『スーパーマリオ64DS』のミニゲーム「ボムへいたいさくせん」に着想を得たオリジナル作品。" />
+  <meta name="description" content="空から降るボム兵を撃ち落として花ばたけを守るドット絵アクションゲーム。パチンコで狙い撃ち、コンボでハイスコアを目指せ！" />
 
   <!-- Open Graph Protocol -->
   <meta property="og:type" content="website" />
@@ -28,7 +31,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css" />
+  <link rel="stylesheet" href="style.css?v=2" />
 </head>
 <body>
   <div class="crt">
@@ -45,18 +48,15 @@
             <h2>あそびかた</h2>
             <ul>
               <li>パチンコの玉を<b>ドラッグで引いて離す</b>と発射！</li>
+              <li>玉は<b>貫通</b>。1発で複数倒すと<b>コンボ得点</b>（最大×5）。</li>
               <li>空から降る<b>ボムへい</b>を撃ち落として<b>花ばたけ</b>を守れ。</li>
               <li>花に当たると花が枯れる。全部枯れたら<b>ゲームオーバー</b>。</li>
             </ul>
             <div class="legend">
               <div class="lg"><span class="ico ico-bomb"></span>ノーマル 100</div>
               <div class="lg"><span class="ico ico-fast"></span>スピード 150</div>
-              <div class="lg"><span class="ico ico-armor"></span>てつ甲 ×2発</div>
+              <div class="lg"><span class="ico ico-armor"></span>てつ甲 ×2発 300</div>
               <div class="lg"><span class="ico ico-gold"></span>ゴールド 500</div>
-              <div class="lg"><span class="ico ico-heart"></span>ハート 花復活</div>
-              <div class="lg"><span class="ico ico-star"></span>スター 玉強化</div>
-              <div class="lg"><span class="ico ico-freeze"></span>フリーズ 減速</div>
-              <div class="lg"><span class="ico ico-nuke"></span>ドカン 全消し</div>
             </div>
             <button id="startBtn">START</button>
           </div>
@@ -72,14 +72,9 @@
           </div>
         </div>
       </div>
-
-      <p class="credit">
-        『スーパーマリオ64DS』のミニゲーム「ボムへいたいさくせん」に着想を得た<br />
-        オリジナル作品 ／ HTML5 Canvas + JavaScript 製
-      </p>
     </div>
   </div>
 
-  <script src="game.js"></script>
+  <script src="game.js?v=2"></script>
 </body>
 </html>

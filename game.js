@@ -1,12 +1,10 @@
 /*
  * ボムレイン・ディフェンス (BOMB RAIN DEFENSE)
  * --------------------------------------------------
- * 『スーパーマリオ64DS』のミニゲーム「ボムへいたいさくせん」に
- * 着想を得たオリジナルのドット絵アクション。
+ * 空から降るボム兵をパチンコで撃ち落として花ばたけを守るドット絵アクション。
  *
  * ・低解像度バッファに描画し、ニアレストネイバーで拡大してドット絵風に。
- * ・操作: パチンコの玉をドラッグで引いて離すと発射。
- * ・ボムへいを撃ち落として花ばたけを守る。敵・アイテムは多種。
+ * ・操作: パチンコの玉をドラッグで引いて離すと発射。玉は貫通する。
  */
 
 (() => {
@@ -18,7 +16,6 @@
   // ---- 解像度: 論理(ドット)空間 W×H をSCALE倍で表示 ----
   const W = 160;
   const H = 214;
-  const SCALE = 3; // 160*3=480, 214*3=642
 
   // オフスクリーン(ドット)バッファ
   const buf = document.createElement("canvas");
@@ -37,7 +34,7 @@
 
   // ---- 定数(ドット空間) ----
   const GROUND_Y = H - 30;
-  const ANCHOR = { x: W / 2, y: H - 12 };
+  const ANCHOR = { x: W / 2, y: GROUND_Y - 8 }; // 地面の上に立つ高さ
   const MAX_PULL = 36;
   const LAUNCH_POWER = 0.2;
   const GRAVITY = 0.085;
@@ -56,21 +53,76 @@
     cyan: "#7ef0ff",
     orange: "#ff7a1a",
     white: "#ffffff",
-    green: "#3fbf3a",
     red: "#e94f4f",
   };
 
-  // 敵・アイテム定義
+  // 敵の定義(アイテムなし)
   const TYPES = {
-    bomb:   { kind: "enemy", hp: 1, score: 100, r: 6, color: COL.black,  chute: COL.red },
-    fast:   { kind: "enemy", hp: 1, score: 150, r: 5, color: COL.blue,   chute: COL.cyan },
-    armor:  { kind: "enemy", hp: 2, score: 300, r: 7, color: COL.metal,  chute: COL.metalDk },
-    gold:   { kind: "enemy", hp: 1, score: 500, r: 6, color: COL.gold,   chute: COL.white },
-    heart:  { kind: "item",  hp: 1, score: 50,  r: 6, color: COL.pink,   chute: COL.white },
-    star:   { kind: "item",  hp: 1, score: 50,  r: 6, color: COL.gold,   chute: COL.white },
-    freeze: { kind: "item",  hp: 1, score: 50,  r: 6, color: COL.cyan,   chute: COL.white },
-    nuke:   { kind: "item",  hp: 1, score: 50,  r: 6, color: COL.orange, chute: COL.white },
+    bomb:  { hp: 1, score: 100, r: 6, color: COL.black, chute: COL.red },
+    fast:  { hp: 1, score: 150, r: 5, color: COL.blue,  chute: COL.cyan },
+    armor: { hp: 2, score: 300, r: 7, color: COL.metal, chute: COL.metalDk },
+    gold:  { hp: 1, score: 500, r: 6, color: COL.gold,  chute: COL.white },
   };
+
+  // ============================================================
+  // 効果音 (Web Audio / アセット不要のシンセ)
+  // ============================================================
+  const Sound = (() => {
+    let ac = null;
+    function init() {
+      if (!ac) {
+        try {
+          ac = new (window.AudioContext || window.webkitAudioContext)();
+        } catch (e) { ac = null; }
+      }
+      if (ac && ac.state === "suspended") ac.resume();
+    }
+    function tone(freq, dur, type, vol, slideTo, delay) {
+      if (!ac) return;
+      const t = ac.currentTime + (delay || 0);
+      const o = ac.createOscillator();
+      const g = ac.createGain();
+      o.type = type || "square";
+      o.frequency.setValueAtTime(freq, t);
+      if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t + dur);
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g); g.connect(ac.destination);
+      o.start(t); o.stop(t + dur + 0.02);
+    }
+    function noise(dur, vol, cutoff) {
+      if (!ac) return;
+      const t = ac.currentTime;
+      const n = Math.floor(ac.sampleRate * dur);
+      const b = ac.createBuffer(1, n, ac.sampleRate);
+      const d = b.getChannelData(0);
+      for (let i = 0; i < n; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / n);
+      const s = ac.createBufferSource(); s.buffer = b;
+      const f = ac.createBiquadFilter(); f.type = "lowpass"; f.frequency.value = cutoff || 1400;
+      const g = ac.createGain();
+      g.gain.setValueAtTime(vol, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      s.connect(f); f.connect(g); g.connect(ac.destination);
+      s.start(t); s.stop(t + dur);
+    }
+    return {
+      init,
+      shoot() { tone(680, 0.12, "square", 0.12, 220); },
+      hit() { noise(0.18, 0.22, 1200); tone(160, 0.12, "square", 0.1, 70); },
+      armor() { tone(340, 0.05, "square", 0.16, 240); tone(520, 0.05, "square", 0.1, null, 0.04); },
+      gold() {
+        tone(660, 0.07, "square", 0.14);
+        tone(880, 0.07, "square", 0.14, null, 0.07);
+        tone(1320, 0.12, "square", 0.14, null, 0.14);
+      },
+      flower() { noise(0.25, 0.2, 800); tone(200, 0.3, "sawtooth", 0.16, 60); },
+      over() {
+        tone(440, 0.2, "square", 0.16, null, 0);
+        tone(330, 0.2, "square", 0.16, null, 0.2);
+        tone(220, 0.45, "square", 0.16, 110, 0.4);
+      },
+    };
+  })();
 
   // ---- 状態 ----
   let state = "menu";
@@ -84,18 +136,12 @@
   let floats = [];
   let flowers = [];
   let ballId = 1;
-
-  // パワーアップ・演出
-  let slowTimer = 0;   // フリーズ
-  let bigTimer = 0;    // スター(玉強化)
-  let shake = 0;       // 画面シェイク
-  let flash = 0;       // 全体フラッシュ(ドカン)
+  let shake = 0;
 
   // ---- 照準 ----
   let aiming = false;
   let pull = { x: 0, y: 0 };
 
-  // 時間のゆらぎ用シード(Math.randomの代替ではなく演出用)
   // ============================================================
   function resetGame() {
     score = 0;
@@ -105,10 +151,7 @@
     balls = [];
     particles = [];
     floats = [];
-    slowTimer = 0;
-    bigTimer = 0;
     shake = 0;
-    flash = 0;
     aiming = false;
     pull = { x: 0, y: 0 };
 
@@ -126,15 +169,9 @@
   function pickType() {
     const diff = Math.min(elapsed / 3600, 1);
     const r = Math.random();
-    // アイテムは控えめ(約12%)
-    if (r < 0.04) return "heart";
-    if (r < 0.07) return "star";
-    if (r < 0.10) return "freeze";
-    if (r < 0.12) return "nuke";
-    if (r < 0.15) return "gold";
-    // 難易度が上がると硬い・速い敵が増える
-    if (r < 0.15 + 0.25 * diff) return "armor";
-    if (r < 0.55 + 0.2 * diff) return "fast";
+    if (r < 0.08) return "gold";
+    if (r < 0.08 + 0.27 * diff) return "armor";
+    if (r < 0.5 + 0.2 * diff) return "fast";
     return "bomb";
   }
 
@@ -147,11 +184,9 @@
     if (type === "fast") speed *= 1.7;
     if (type === "armor") speed *= 0.8;
     fallers.push({
-      type,
-      def,
+      type, def,
       hp: def.hp,
-      x,
-      baseX: x,
+      x, baseX: x,
       y: -12,
       vy: speed,
       r: def.r,
@@ -169,17 +204,16 @@
   function fireBall() {
     const len = Math.hypot(pull.x, pull.y);
     if (len < 4) return;
-    const big = bigTimer > 0;
     balls.push({
       id: ballId++,
       x: ANCHOR.x + pull.x * 0.3,
       y: ANCHOR.y + pull.y * 0.3,
       vx: -pull.x * LAUNCH_POWER,
       vy: -pull.y * LAUNCH_POWER,
-      r: big ? BALL_R + 3 : BALL_R,
-      pierce: big ? 4 : 1, // 貫通できるHP量
+      r: BALL_R,
       kills: 0,
     });
+    Sound.shoot();
   }
 
   // ============================================================
@@ -206,57 +240,12 @@
   }
 
   // ============================================================
-  // アイテム効果
-  // ============================================================
-  function applyItem(type, x, y) {
-    if (type === "heart") {
-      const dead = flowers.filter((f) => !f.alive);
-      if (dead.length) {
-        dead[Math.floor(Math.random() * dead.length)].alive = true;
-        addFloat(x, y, "FLOWER+", COL.pink);
-        burst(x, y, COL.pink, 16, 3);
-      } else {
-        score += 300;
-        addFloat(x, y, "+300", COL.pink);
-      }
-    } else if (type === "star") {
-      bigTimer = 360;
-      addFloat(x, y, "POWER!", COL.gold);
-      burst(x, y, COL.gold, 18, 3);
-    } else if (type === "freeze") {
-      slowTimer = 300;
-      addFloat(x, y, "SLOW!", COL.cyan);
-      burst(x, y, COL.cyan, 18, 3);
-    } else if (type === "nuke") {
-      let cleared = 0;
-      for (const f of fallers) {
-        if (f.def.kind === "enemy" && !f.dead) {
-          burst(f.x, f.y, COL.orange, 8, 2);
-          f.dead = true;
-          cleared++;
-        }
-      }
-      const gained = cleared * 100;
-      score += gained;
-      flash = 12;
-      shake = 8;
-      addFloat(W / 2, 60, "BOOM! +" + gained, COL.orange);
-      burst(x, y, COL.orange, 24, 4);
-    }
-  }
-
-  // ============================================================
   // 更新
   // ============================================================
   function update() {
     if (state !== "playing") return;
     elapsed++;
-    if (slowTimer > 0) slowTimer--;
-    if (bigTimer > 0) bigTimer--;
     if (shake > 0) shake--;
-    if (flash > 0) flash--;
-
-    const slow = slowTimer > 0 ? 0.4 : 1;
 
     // スポーン
     spawnTimer--;
@@ -269,74 +258,62 @@
 
     // 落下物
     for (const f of fallers) {
-      f.y += f.vy * slow;
-      f.sway += f.swaySpeed * slow;
+      f.y += f.vy;
+      f.sway += f.swaySpeed;
       f.x = f.baseX + Math.sin(f.sway) * f.swayAmp;
       f.x = Math.max(8, Math.min(W - 8, f.x));
       f.fuse += 0.15;
 
       if (f.y >= GROUND_Y) {
-        if (f.def.kind === "enemy") {
-          // 一番近い生きた花を枯らす
-          let target = null, bd = 999;
-          for (const fl of flowers) {
-            if (!fl.alive) continue;
-            const d = Math.abs(fl.x - f.x);
-            if (d < bd) { bd = d; target = fl; }
-          }
-          if (target && bd < 22) {
-            target.alive = false;
-            burst(target.x, GROUND_Y, COL.red, 20, 3);
-            shake = 6;
-          }
-          burst(f.x, GROUND_Y, COL.black, 10, 2);
+        // 一番近い生きた花を枯らす
+        let target = null, bd = 999;
+        for (const fl of flowers) {
+          if (!fl.alive) continue;
+          const d = Math.abs(fl.x - f.x);
+          if (d < bd) { bd = d; target = fl; }
         }
+        if (target && bd < 22) {
+          target.alive = false;
+          burst(target.x, GROUND_Y, COL.red, 20, 3);
+          shake = 6;
+          Sound.flower();
+        }
+        burst(f.x, GROUND_Y, COL.black, 10, 2);
         f.dead = true;
       }
     }
     fallers = fallers.filter((f) => !f.dead);
 
-    // 玉
+    // 玉(常時貫通)
     for (const ball of balls) {
       ball.vy += GRAVITY;
       ball.x += ball.vx;
       ball.y += ball.vy;
 
       for (const f of fallers) {
-        if (f.dead || ball.pierce <= 0) continue;
-        if (f.hitBy.has(ball.id)) continue;
+        if (f.dead || f.hitBy.has(ball.id)) continue;
         const d = Math.hypot(ball.x - f.x, ball.y - f.y);
         if (d < f.r + ball.r) {
           f.hitBy.add(ball.id);
-          if (f.def.kind === "item") {
-            applyItem(f.type, f.x, f.y);
+          f.hp -= 1;
+          if (f.hp <= 0) {
             f.dead = true;
-            ball.pierce -= 1;
+            ball.kills++;
+            const mult = Math.min(ball.kills, 5);
+            const gained = f.def.score * mult;
+            score += gained;
+            addFloat(f.x, f.y, "+" + gained + (mult > 1 ? " x" + mult : ""),
+              f.type === "gold" ? COL.gold : COL.white);
+            burst(f.x, f.y, f.type === "gold" ? COL.gold : COL.orange, 14, 2.6);
+            if (f.type === "gold") Sound.gold(); else Sound.hit();
           } else {
-            f.hp -= 1;
-            ball.pierce -= 1;
-            if (f.hp <= 0) {
-              f.dead = true;
-              ball.kills++;
-              const mult = Math.min(ball.kills, 5);
-              const gained = f.def.score * mult;
-              score += gained;
-              addFloat(
-                f.x, f.y,
-                "+" + gained + (mult > 1 ? " x" + mult : ""),
-                f.type === "gold" ? COL.gold : COL.white
-              );
-              burst(f.x, f.y, f.type === "gold" ? COL.gold : COL.orange, 14, 2.6);
-            } else {
-              // てつ甲: ひびエフェクト
-              burst(f.x, f.y, COL.metalDk, 6, 1.8);
-            }
+            burst(f.x, f.y, COL.metalDk, 6, 1.8);
+            Sound.armor();
           }
         }
       }
       fallers = fallers.filter((f) => !f.dead);
 
-      if (ball.pierce <= 0) ball.dead = true;
       if (ball.y > H + 12 || ball.x < -12 || ball.x > W + 12) ball.dead = true;
     }
     balls = balls.filter((b) => !b.dead);
@@ -371,7 +348,6 @@
       oy = (Math.cos(elapsed * 1.9) * shake * 0.6) | 0;
     }
 
-    // 空(ドット風グラデを帯で)
     drawSky();
     drawClouds();
 
@@ -383,7 +359,6 @@
     ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y);
     ctx.fillStyle = "#7bd047";
     ctx.fillRect(0, GROUND_Y + 4, W, 3);
-    // 土のドット
     ctx.fillStyle = "#3d7322";
     for (let x = 0; x < W; x += 6) {
       ctx.fillRect(x + ((x / 6) % 2), GROUND_Y + 10, 2, 2);
@@ -413,13 +388,6 @@
     ctx.restore();
 
     drawHUD();
-
-    // パワーアップ枠演出
-    if (slowTimer > 0) frameTint("rgba(126,240,255,0.12)");
-    if (flash > 0) {
-      ctx.fillStyle = "rgba(255,200,120," + (flash / 12) * 0.5 + ")";
-      ctx.fillRect(0, 0, W, H);
-    }
 
     // バッファを拡大表示
     vctx.imageSmoothingEnabled = false;
@@ -478,100 +446,41 @@
     ctx.moveTo(x + f.r + 2, y - f.r - 9); ctx.lineTo(x + f.r * 0.5, y - f.r);
     ctx.stroke();
 
-    if (f.def.kind === "enemy") {
-      // 本体(球)
-      disc(x, y, f.r, f.def.color);
-      // ハイライト
-      ctx.fillStyle = "rgba(255,255,255,0.4)";
-      ctx.fillRect((x - f.r * 0.5) | 0, (y - f.r * 0.5) | 0, 2, 2);
-      if (f.type === "armor") {
-        // リベット
-        ctx.fillStyle = f.def.chute;
-        ctx.fillRect((x - 1) | 0, (y - f.r + 1) | 0, 2, 2);
-        ctx.fillRect((x - f.r + 1) | 0, (y - 1) | 0, 2, 2);
-        ctx.fillRect((x + f.r - 3) | 0, (y - 1) | 0, 2, 2);
-        if (f.hp < f.def.hp) { // ひび
-          ctx.strokeStyle = "#2b323f";
-          ctx.beginPath();
-          ctx.moveTo(x - 2, y - 3); ctx.lineTo(x + 1, y); ctx.lineTo(x - 1, y + 3);
-          ctx.stroke();
-        }
+    // 本体(球)
+    disc(x, y, f.r, f.def.color);
+    ctx.fillStyle = "rgba(255,255,255,0.4)";
+    ctx.fillRect((x - f.r * 0.5) | 0, (y - f.r * 0.5) | 0, 2, 2);
+    if (f.type === "armor") {
+      ctx.fillStyle = f.def.chute;
+      ctx.fillRect((x - 1) | 0, (y - f.r + 1) | 0, 2, 2);
+      ctx.fillRect((x - f.r + 1) | 0, (y - 1) | 0, 2, 2);
+      ctx.fillRect((x + f.r - 3) | 0, (y - 1) | 0, 2, 2);
+      if (f.hp < f.def.hp) {
+        ctx.strokeStyle = "#2b323f";
+        ctx.beginPath();
+        ctx.moveTo(x - 2, y - 3); ctx.lineTo(x + 1, y); ctx.lineTo(x - 1, y + 3);
+        ctx.stroke();
       }
-      // 目
-      ctx.fillStyle = "#fff";
-      ctx.fillRect((x - 3) | 0, (y - 2) | 0, 2, 3);
-      ctx.fillRect((x + 1) | 0, (y - 2) | 0, 2, 3);
-      ctx.fillStyle = "#000";
-      ctx.fillRect((x - 2) | 0, (y - 1) | 0, 1, 2);
-      ctx.fillRect((x + 2) | 0, (y - 1) | 0, 1, 2);
-      // 導火線・火花
-      ctx.fillStyle = COL.goldDk;
-      ctx.fillRect((x - 1) | 0, (y - f.r - 2) | 0, 2, 2);
-      const sp = 1 + Math.sin(f.fuse);
-      ctx.fillStyle = COL.gold;
-      ctx.fillRect((x - 1) | 0, (y - f.r - 4 - sp) | 0, 2, 2);
-    } else {
-      // アイテム
-      drawItemIcon(f.type, x, y, f.r);
     }
-  }
-
-  function drawItemIcon(type, x, y, r) {
-    disc(x, y, r, "rgba(0,0,0,0.15)");
-    if (type === "heart") {
-      ctx.fillStyle = COL.pink;
-      ctx.fillRect(x - 3, y - 2, 2, 3);
-      ctx.fillRect(x + 1, y - 2, 2, 3);
-      ctx.fillRect(x - 3, y - 3, 6, 2);
-      ctx.fillRect(x - 2, y, 4, 2);
-      ctx.fillRect(x - 1, y + 2, 2, 1);
-    } else if (type === "star") {
-      star(x, y, r, COL.gold);
-    } else if (type === "freeze") {
-      ctx.fillStyle = COL.cyan;
-      ctx.fillRect(x - 1, y - r, 2, r * 2);
-      ctx.fillRect(x - r, y - 1, r * 2, 2);
-      ctx.fillRect(x - 3, y - 3, 2, 2);
-      ctx.fillRect(x + 1, y - 3, 2, 2);
-      ctx.fillRect(x - 3, y + 1, 2, 2);
-      ctx.fillRect(x + 1, y + 1, 2, 2);
-    } else if (type === "nuke") {
-      disc(x, y, r - 1, COL.orange);
-      ctx.fillStyle = COL.gold;
-      ctx.fillRect(x - 1, y - r + 1, 2, 2);
-      ctx.fillStyle = "#000";
-      ctx.fillRect(x - 2, y - 1, 4, 1);
-      ctx.fillRect(x - 1, y - 2, 2, 3);
-    }
-  }
-
-  function star(cx, cy, r, color) {
-    ctx.fillStyle = color;
-    ctx.beginPath();
-    for (let i = 0; i < 10; i++) {
-      const ang = (Math.PI / 5) * i - Math.PI / 2;
-      const rad = i % 2 === 0 ? r : r * 0.45;
-      const px = cx + Math.cos(ang) * rad;
-      const py = cy + Math.sin(ang) * rad;
-      if (i === 0) ctx.moveTo(px, py);
-      else ctx.lineTo(px, py);
-    }
-    ctx.closePath();
-    ctx.fill();
+    // 目
+    ctx.fillStyle = "#fff";
+    ctx.fillRect((x - 3) | 0, (y - 2) | 0, 2, 3);
+    ctx.fillRect((x + 1) | 0, (y - 2) | 0, 2, 3);
+    ctx.fillStyle = "#000";
+    ctx.fillRect((x - 2) | 0, (y - 1) | 0, 1, 2);
+    ctx.fillRect((x + 2) | 0, (y - 1) | 0, 1, 2);
+    // 導火線・火花
+    ctx.fillStyle = COL.goldDk;
+    ctx.fillRect((x - 1) | 0, (y - f.r - 2) | 0, 2, 2);
+    const sp = 1 + Math.sin(f.fuse);
+    ctx.fillStyle = COL.gold;
+    ctx.fillRect((x - 1) | 0, (y - f.r - 4 - sp) | 0, 2, 2);
   }
 
   function drawBall(b) {
     disc(b.x, b.y, b.r, "#161616");
     ctx.fillStyle = "rgba(255,255,255,0.5)";
     ctx.fillRect((b.x - b.r * 0.4) | 0, (b.y - b.r * 0.4) | 0, 1, 1);
-    if (b.pierce > 1 || b.r > BALL_R) {
-      // 強化玉のオーラ
-      ctx.strokeStyle = COL.gold;
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.arc(b.x, b.y, b.r + 1, 0, Math.PI * 2);
-      ctx.stroke();
-    }
   }
 
   function drawFlower(f) {
@@ -585,14 +494,12 @@
       ctx.stroke();
       return;
     }
-    // 茎
     ctx.strokeStyle = "#2f8f22";
     ctx.lineWidth = 2;
     ctx.beginPath();
     ctx.moveTo(x, GROUND_Y + 6);
     ctx.lineTo(x, GROUND_Y - 4);
     ctx.stroke();
-    // 花びら(十字+斜め)
     const cy = GROUND_Y - 7;
     ctx.fillStyle = COL.pink;
     ctx.fillRect(x - 4, cy - 1, 3, 3);
@@ -607,7 +514,6 @@
     const A = ANCHOR;
     const L = { x: A.x - 6, y: A.y - 6 };
     const R = { x: A.x + 6, y: A.y - 6 };
-    // Y字
     ctx.strokeStyle = "#7a4a22";
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
@@ -628,7 +534,7 @@
       ctx.beginPath();
       ctx.moveTo(L.x, L.y); ctx.lineTo(px, py); ctx.lineTo(R.x, R.y);
       ctx.stroke();
-      disc(px, py, bigTimer > 0 ? BALL_R + 2 : BALL_R, "#161616");
+      disc(px, py, BALL_R, "#161616");
       drawTrajectory(px, py);
     } else {
       ctx.strokeStyle = "#52301a";
@@ -639,15 +545,21 @@
     }
   }
 
+  // 軌道予測: 背景に埋もれないよう黒縁+黄ドットで描く
   function drawTrajectory(px, py) {
     let x = px, y = py;
     let vx = -pull.x * LAUNCH_POWER;
     let vy = -pull.y * LAUNCH_POWER;
-    ctx.fillStyle = "rgba(255,255,255,0.7)";
-    for (let i = 0; i < 50; i++) {
+    for (let i = 0; i < 64; i++) {
       vy += GRAVITY; x += vx; y += vy;
-      if (i % 4 === 0) ctx.fillRect(x | 0, y | 0, 1, 1);
       if (y > H || x < 0 || x > W) break;
+      if (i % 5 === 0) {
+        const ix = x | 0, iy = y | 0;
+        ctx.fillStyle = "rgba(0,0,0,0.55)";
+        ctx.fillRect(ix - 1, iy - 1, 3, 3);
+        ctx.fillStyle = COL.gold;
+        ctx.fillRect(ix, iy, 1, 1);
+      }
     }
   }
 
@@ -656,30 +568,12 @@
     ctx.textAlign = "left";
     pixelText("SCORE " + score, 4, 9, COL.white, "#000");
 
-    // 残り花
     ctx.textAlign = "right";
     const alive = flowers.filter((f) => f.alive).length;
     pixelTextRight("FLOWER " + alive + "/" + FLOWER_COUNT, W - 4, 9,
       alive <= 1 ? COL.red : COL.white, "#000");
-
-    // パワーアップ残量バー
-    let by = 18;
-    if (bigTimer > 0) { powerBar(4, by, "POWER", bigTimer / 360, COL.gold); by += 8; }
-    if (slowTimer > 0) { powerBar(4, by, "SLOW", slowTimer / 300, COL.cyan); by += 8; }
   }
 
-  function powerBar(x, y, label, ratio, color) {
-    ctx.font = "7px 'DotGothic16', monospace";
-    ctx.textAlign = "left";
-    pixelText(label, x, y, color, "#000");
-    const bx = x + 34, bw = 40;
-    ctx.fillStyle = "#000";
-    ctx.fillRect(bx - 1, y - 5, bw + 2, 5);
-    ctx.fillStyle = color;
-    ctx.fillRect(bx, y - 4, Math.max(0, bw * ratio) | 0, 3);
-  }
-
-  // 縁取り付きテキスト(ドット風)
   function pixelText(text, x, y, color, outline) {
     ctx.fillStyle = outline;
     ctx.fillText(text, x - 1, y);
@@ -698,11 +592,6 @@
     ctx.fillText(text, x, y + 1);
     ctx.fillStyle = color;
     ctx.fillText(text, x, y);
-  }
-
-  function frameTint(color) {
-    ctx.fillStyle = color;
-    ctx.fillRect(0, 0, W, H);
   }
 
   // ============================================================
@@ -726,6 +615,7 @@
   function onDown(e) {
     if (state !== "playing") return;
     e.preventDefault();
+    Sound.init();
     aiming = true;
     updatePull(pointerPos(e));
   }
@@ -760,6 +650,7 @@
   // 状態遷移
   // ============================================================
   function startGame() {
+    Sound.init();
     resetGame();
     state = "playing";
     overlay.classList.add("hidden");
@@ -767,6 +658,7 @@
   }
   function endGame() {
     state = "gameover";
+    Sound.over();
     if (score > best) {
       best = score;
       localStorage.setItem(BEST_KEY, String(best));
