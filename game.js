@@ -1,7 +1,7 @@
 /*
  * ボムレイン・ディフェンス (BOMB RAIN DEFENSE)
  * --------------------------------------------------
- * 空から降るボム兵をパチンコで撃ち落として花ばたけを守るドット絵アクション。
+ * 空から襲来する UFO をパチンコで撃ち落として人々を守るドット絵アクション。
  *
  * ・低解像度バッファに描画し、ニアレストネイバーで拡大してドット絵風に。
  * ・操作: パチンコの玉をドラッグで引いて離すと発射。玉は貫通する。
@@ -17,7 +17,6 @@
   const W = 160;
   const H = 214;
 
-  // オフスクリーン(ドット)バッファ
   const buf = document.createElement("canvas");
   buf.width = W;
   buf.height = H;
@@ -25,55 +24,92 @@
   vctx.imageSmoothingEnabled = false;
 
   // ---- UI要素 ----
-  const overlay = document.getElementById("overlay");
+  const stage = document.getElementById("stage");
+  const homeScreen = document.getElementById("home");
+  const menuScreen = document.getElementById("menu");
   const gameoverScreen = document.getElementById("gameover");
+  const menuBtn = document.getElementById("menuBtn");
   const startBtn = document.getElementById("startBtn");
   const retryBtn = document.getElementById("retryBtn");
+  const resumeBtn = document.getElementById("resumeBtn");
+  const fsBtn = document.getElementById("fsBtn");
+  const homeBtn = document.getElementById("homeBtn");
+  const toHomeBtn = document.getElementById("toHomeBtn");
   const finalScoreEl = document.getElementById("finalScore");
-  const bestScoreEl = document.getElementById("bestScore");
+  const homeRanksEl = document.getElementById("homeRanks");
+  const goRanksEl = document.getElementById("goRanks");
 
   // ---- 定数(ドット空間) ----
   const GROUND_Y = H - 30;
-  const ANCHOR = { x: W / 2, y: GROUND_Y - 8 }; // 地面の上に立つ高さ
+  const ANCHOR = { x: W / 2, y: GROUND_Y - 22 };
   const MAX_PULL = 36;
   const LAUNCH_POWER = 0.2;
   const GRAVITY = 0.085;
   const BALL_R = 3;
-  const FLOWER_COUNT = 4;
-  const BEST_KEY = "bombRainBest";
+  const PEOPLE_COUNT = 4;
+  const SCORE_KEY = "bombRainScores";
 
   const COL = {
-    black: "#1c1c1c",
     blue: "#3aa0ff",
-    metal: "#9aa6bd",
-    metalDk: "#5c6a85",
+    metal: "#c2cad8",
     gold: "#ffd23e",
-    goldDk: "#b8851a",
     pink: "#ff5fa2",
     cyan: "#7ef0ff",
-    orange: "#ff7a1a",
     white: "#ffffff",
     red: "#e94f4f",
   };
 
-  // 敵の定義(アイテムなし)
+  // 敵(UFO) — ノーマルとスピードの2種
   const TYPES = {
-    bomb:  { hp: 1, score: 100, r: 6, color: COL.black, chute: COL.red },
-    fast:  { hp: 1, score: 150, r: 5, color: COL.blue,  chute: COL.cyan },
-    armor: { hp: 2, score: 300, r: 7, color: COL.metal, chute: COL.metalDk },
-    gold:  { hp: 1, score: 500, r: 6, color: COL.gold,  chute: COL.white },
+    ufo:  { score: 100, r: 6, color: COL.metal, accent: COL.cyan },
+    fast: { score: 150, r: 5, color: COL.blue,  accent: COL.white },
   };
 
   // ============================================================
-  // 効果音 (Web Audio / アセット不要のシンセ)
+  // ハイスコア(上位3件)
+  // ============================================================
+  let scores = loadScores();
+  function loadScores() {
+    try {
+      const a = JSON.parse(localStorage.getItem(SCORE_KEY) || "[]");
+      if (Array.isArray(a)) return a.filter((n) => typeof n === "number").sort((x, y) => y - x).slice(0, 3);
+    } catch (e) {}
+    return [];
+  }
+  function saveScore(s) {
+    scores.push(s);
+    scores.sort((a, b) => b - a);
+    scores = scores.slice(0, 3);
+    try { localStorage.setItem(SCORE_KEY, JSON.stringify(scores)); } catch (e) {}
+  }
+  function renderRanks(el, highlight) {
+    if (!el) return;
+    const labels = ["1ST", "2ND", "3RD"];
+    let hlUsed = false;
+    el.innerHTML = "";
+    for (let i = 0; i < 3; i++) {
+      const v = scores[i];
+      const li = document.createElement("li");
+      if (!hlUsed && highlight != null && v === highlight) {
+        li.className = "hl";
+        hlUsed = true;
+      }
+      li.innerHTML =
+        '<span class="rk">' + labels[i] + "</span>" +
+        '<span class="sc">' + (v != null ? v : "----") + "</span>";
+      el.appendChild(li);
+    }
+  }
+
+  // ============================================================
+  // 効果音 (Web Audio)
   // ============================================================
   const Sound = (() => {
     let ac = null;
     function init() {
       if (!ac) {
-        try {
-          ac = new (window.AudioContext || window.webkitAudioContext)();
-        } catch (e) { ac = null; }
+        try { ac = new (window.AudioContext || window.webkitAudioContext)(); }
+        catch (e) { ac = null; }
       }
       if (ac && ac.state === "suspended") ac.resume();
     }
@@ -108,14 +144,8 @@
     return {
       init,
       shoot() { tone(680, 0.12, "square", 0.12, 220); },
-      hit() { noise(0.18, 0.22, 1200); tone(160, 0.12, "square", 0.1, 70); },
-      armor() { tone(340, 0.05, "square", 0.16, 240); tone(520, 0.05, "square", 0.1, null, 0.04); },
-      gold() {
-        tone(660, 0.07, "square", 0.14);
-        tone(880, 0.07, "square", 0.14, null, 0.07);
-        tone(1320, 0.12, "square", 0.14, null, 0.14);
-      },
-      flower() { noise(0.25, 0.2, 800); tone(200, 0.3, "sawtooth", 0.16, 60); },
+      hit() { noise(0.18, 0.22, 1600); tone(420, 0.14, "square", 0.1, 120); },
+      lost() { noise(0.25, 0.2, 800); tone(200, 0.3, "sawtooth", 0.16, 60); },
       over() {
         tone(440, 0.2, "square", 0.16, null, 0);
         tone(330, 0.2, "square", 0.16, null, 0.2);
@@ -125,20 +155,20 @@
   })();
 
   // ---- 状態 ----
-  let state = "menu";
+  let state = "home"; // home | playing | gameover
+  let menuOpen = false;
+  let didAutoFs = false; // 起動後の最初のSTARTで一度だけ全画面
   let score = 0;
-  let best = Number(localStorage.getItem(BEST_KEY) || 0);
   let elapsed = 0;
   let spawnTimer = 0;
   let fallers = [];
   let balls = [];
   let particles = [];
   let floats = [];
-  let flowers = [];
+  let people = [];
   let ballId = 1;
   let shake = 0;
 
-  // ---- 照準 ----
   let aiming = false;
   let pull = { x: 0, y: 0 };
 
@@ -155,11 +185,11 @@
     aiming = false;
     pull = { x: 0, y: 0 };
 
-    flowers = [];
+    people = [];
     const margin = 24;
-    const gap = (W - margin * 2) / (FLOWER_COUNT - 1);
-    for (let i = 0; i < FLOWER_COUNT; i++) {
-      flowers.push({ x: Math.round(margin + gap * i), alive: true });
+    const gap = (W - margin * 2) / (PEOPLE_COUNT - 1);
+    for (let i = 0; i < PEOPLE_COUNT; i++) {
+      people.push({ x: Math.round(margin + gap * i), alive: true });
     }
   }
 
@@ -168,11 +198,7 @@
   // ============================================================
   function pickType() {
     const diff = Math.min(elapsed / 3600, 1);
-    const r = Math.random();
-    if (r < 0.08) return "gold";
-    if (r < 0.08 + 0.27 * diff) return "armor";
-    if (r < 0.5 + 0.2 * diff) return "fast";
-    return "bomb";
+    return Math.random() < 0.45 + 0.25 * diff ? "fast" : "ufo";
   }
 
   function spawn() {
@@ -182,18 +208,16 @@
     const diff = Math.min(elapsed / 3600, 1);
     let speed = 0.28 + diff * 0.6 + Math.random() * 0.18;
     if (type === "fast") speed *= 1.7;
-    if (type === "armor") speed *= 0.8;
     fallers.push({
       type, def,
-      hp: def.hp,
       x, baseX: x,
       y: -12,
       vy: speed,
       r: def.r,
       sway: Math.random() * Math.PI * 2,
       swaySpeed: 0.025 + Math.random() * 0.02,
-      swayAmp: (type === "gold" ? 22 : 10) + Math.random() * 8,
-      fuse: Math.random() * Math.PI,
+      swayAmp: 12 + Math.random() * 8,
+      blink: Math.random() * Math.PI,
       hitBy: new Set(),
     });
   }
@@ -206,8 +230,8 @@
     if (len < 4) return;
     balls.push({
       id: ballId++,
-      x: ANCHOR.x + pull.x * 0.3,
-      y: ANCHOR.y + pull.y * 0.3,
+      x: ANCHOR.x + pull.x, // 手放した瞬間の位置から発射
+      y: ANCHOR.y + pull.y,
       vx: -pull.x * LAUNCH_POWER,
       vy: -pull.y * LAUNCH_POWER,
       r: BALL_R,
@@ -239,15 +263,25 @@
     floats.push({ x, y, text, color: color || COL.white, life: 50 });
   }
 
+  // 線分と点の最短距離 <= rad ?（スイープ当たり判定）
+  function segHit(ax, ay, bx, by, cx, cy, rad) {
+    const dx = bx - ax, dy = by - ay;
+    const l2 = dx * dx + dy * dy;
+    let t = l2 > 0 ? ((cx - ax) * dx + (cy - ay) * dy) / l2 : 0;
+    t = Math.max(0, Math.min(1, t));
+    const px = ax + t * dx, py = ay + t * dy;
+    const ddx = cx - px, ddy = cy - py;
+    return ddx * ddx + ddy * ddy <= rad * rad;
+  }
+
   // ============================================================
   // 更新
   // ============================================================
   function update() {
-    if (state !== "playing") return;
+    if (state !== "playing" || menuOpen) return;
     elapsed++;
     if (shake > 0) shake--;
 
-    // スポーン
     spawnTimer--;
     const diff = Math.min(elapsed / 3600, 1);
     const interval = Math.max(28, 80 - diff * 50);
@@ -256,29 +290,28 @@
       spawnTimer = interval + Math.random() * 24;
     }
 
-    // 落下物
+    // UFO
     for (const f of fallers) {
       f.y += f.vy;
       f.sway += f.swaySpeed;
       f.x = f.baseX + Math.sin(f.sway) * f.swayAmp;
       f.x = Math.max(8, Math.min(W - 8, f.x));
-      f.fuse += 0.15;
+      f.blink += 0.2;
 
       if (f.y >= GROUND_Y) {
-        // 一番近い生きた花を枯らす
         let target = null, bd = 999;
-        for (const fl of flowers) {
-          if (!fl.alive) continue;
-          const d = Math.abs(fl.x - f.x);
-          if (d < bd) { bd = d; target = fl; }
+        for (const p of people) {
+          if (!p.alive) continue;
+          const d = Math.abs(p.x - f.x);
+          if (d < bd) { bd = d; target = p; }
         }
         if (target && bd < 22) {
           target.alive = false;
           burst(target.x, GROUND_Y, COL.red, 20, 3);
           shake = 6;
-          Sound.flower();
+          Sound.lost();
         }
-        burst(f.x, GROUND_Y, COL.black, 10, 2);
+        burst(f.x, GROUND_Y, f.def.accent, 10, 2);
         f.dead = true;
       }
     }
@@ -286,30 +319,23 @@
 
     // 玉(常時貫通)
     for (const ball of balls) {
+      const x0 = ball.x, y0 = ball.y;
       ball.vy += GRAVITY;
       ball.x += ball.vx;
       ball.y += ball.vy;
 
       for (const f of fallers) {
         if (f.dead || f.hitBy.has(ball.id)) continue;
-        const d = Math.hypot(ball.x - f.x, ball.y - f.y);
-        if (d < f.r + ball.r) {
+        if (segHit(x0, y0, ball.x, ball.y, f.x, f.y, f.r + ball.r)) {
           f.hitBy.add(ball.id);
-          f.hp -= 1;
-          if (f.hp <= 0) {
-            f.dead = true;
-            ball.kills++;
-            const mult = Math.min(ball.kills, 5);
-            const gained = f.def.score * mult;
-            score += gained;
-            addFloat(f.x, f.y, "+" + gained + (mult > 1 ? " x" + mult : ""),
-              f.type === "gold" ? COL.gold : COL.white);
-            burst(f.x, f.y, f.type === "gold" ? COL.gold : COL.orange, 14, 2.6);
-            if (f.type === "gold") Sound.gold(); else Sound.hit();
-          } else {
-            burst(f.x, f.y, COL.metalDk, 6, 1.8);
-            Sound.armor();
-          }
+          f.dead = true;
+          ball.kills++;
+          const mult = Math.min(ball.kills, 5);
+          const gained = f.def.score * mult;
+          score += gained;
+          addFloat(f.x, f.y, "+" + gained + (mult > 1 ? " x" + mult : ""), COL.white);
+          burst(f.x, f.y, COL.cyan, 14, 2.6);
+          Sound.hit();
         }
       }
       fallers = fallers.filter((f) => !f.dead);
@@ -318,24 +344,15 @@
     }
     balls = balls.filter((b) => !b.dead);
 
-    // パーティクル
     for (const p of particles) {
-      p.x += p.vx;
-      p.y += p.vy;
-      p.vy += 0.08;
-      p.life--;
+      p.x += p.vx; p.y += p.vy; p.vy += 0.08; p.life--;
     }
     particles = particles.filter((p) => p.life > 0);
 
-    // フロート
-    for (const t of floats) {
-      t.y -= 0.5;
-      t.life--;
-    }
+    for (const t of floats) { t.y -= 0.5; t.life--; }
     floats = floats.filter((t) => t.life > 0);
 
-    // ゲームオーバー
-    if (!flowers.some((f) => f.alive)) endGame();
+    if (!people.some((p) => p.alive)) endGame();
   }
 
   // ============================================================
@@ -354,7 +371,6 @@
     ctx.save();
     ctx.translate(ox, oy);
 
-    // 地面
     ctx.fillStyle = "#5fae34";
     ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y);
     ctx.fillStyle = "#7bd047";
@@ -364,8 +380,8 @@
       ctx.fillRect(x + ((x / 6) % 2), GROUND_Y + 10, 2, 2);
     }
 
-    for (const fl of flowers) drawFlower(fl);
-    for (const f of fallers) drawFaller(f);
+    for (const p of people) drawPerson(p);
+    for (const f of fallers) drawUFO(f);
     for (const ball of balls) drawBall(ball);
     for (const p of particles) {
       ctx.globalAlpha = Math.max(0, p.life / p.max);
@@ -376,7 +392,6 @@
 
     drawSlingshot();
 
-    // フロートテキスト
     ctx.font = "8px 'DotGothic16', monospace";
     ctx.textAlign = "center";
     for (const t of floats) {
@@ -387,16 +402,15 @@
 
     ctx.restore();
 
-    drawHUD();
+    if (state === "playing") drawHUD();
 
-    // バッファを拡大表示
     vctx.imageSmoothingEnabled = false;
     vctx.clearRect(0, 0, view.width, view.height);
     vctx.drawImage(buf, 0, 0, W, H, 0, 0, view.width, view.height);
   }
 
   function drawSky() {
-    const bands = ["#4db4e6", "#6cc4ee", "#8ad4f2", "#aee2f3", "#d6f2e0"];
+    const bands = ["#243b6b", "#33538f", "#4a72b0", "#7aa3d0", "#bfe0ef"];
     const h = Math.ceil(GROUND_Y / bands.length);
     for (let i = 0; i < bands.length; i++) {
       ctx.fillStyle = bands[i];
@@ -405,7 +419,7 @@
   }
 
   function drawClouds() {
-    ctx.fillStyle = "rgba(255,255,255,0.9)";
+    ctx.fillStyle = "rgba(255,255,255,0.85)";
     const t = elapsed * 0.08;
     const cs = [
       { x: 24, y: 26, s: 1 },
@@ -431,50 +445,34 @@
     ctx.fill();
   }
 
-  function drawFaller(f) {
+  function drawUFO(f) {
     const x = f.x, y = f.y;
-    // パラシュート
-    ctx.fillStyle = f.def.chute;
+    const w = f.r * 2.0;
+    // ドーム
+    ctx.fillStyle = f.def.accent;
     ctx.beginPath();
-    ctx.arc(x, y - f.r - 9, f.r + 3, Math.PI, 0);
+    ctx.arc(x, y - 1, f.r * 0.75, Math.PI, 0);
     ctx.closePath();
     ctx.fill();
-    ctx.strokeStyle = "rgba(0,0,0,0.35)";
-    ctx.lineWidth = 1;
+    ctx.fillStyle = "rgba(255,255,255,0.7)";
+    ctx.fillRect((x - f.r * 0.4) | 0, (y - f.r * 0.7) | 0, 1, 1);
+    // 円盤本体
+    ctx.fillStyle = f.def.color;
     ctx.beginPath();
-    ctx.moveTo(x - f.r - 2, y - f.r - 9); ctx.lineTo(x - f.r * 0.5, y - f.r);
-    ctx.moveTo(x + f.r + 2, y - f.r - 9); ctx.lineTo(x + f.r * 0.5, y - f.r);
-    ctx.stroke();
-
-    // 本体(球)
-    disc(x, y, f.r, f.def.color);
-    ctx.fillStyle = "rgba(255,255,255,0.4)";
-    ctx.fillRect((x - f.r * 0.5) | 0, (y - f.r * 0.5) | 0, 2, 2);
-    if (f.type === "armor") {
-      ctx.fillStyle = f.def.chute;
-      ctx.fillRect((x - 1) | 0, (y - f.r + 1) | 0, 2, 2);
-      ctx.fillRect((x - f.r + 1) | 0, (y - 1) | 0, 2, 2);
-      ctx.fillRect((x + f.r - 3) | 0, (y - 1) | 0, 2, 2);
-      if (f.hp < f.def.hp) {
-        ctx.strokeStyle = "#2b323f";
-        ctx.beginPath();
-        ctx.moveTo(x - 2, y - 3); ctx.lineTo(x + 1, y); ctx.lineTo(x - 1, y + 3);
-        ctx.stroke();
-      }
-    }
-    // 目
-    ctx.fillStyle = "#fff";
-    ctx.fillRect((x - 3) | 0, (y - 2) | 0, 2, 3);
-    ctx.fillRect((x + 1) | 0, (y - 2) | 0, 2, 3);
-    ctx.fillStyle = "#000";
-    ctx.fillRect((x - 2) | 0, (y - 1) | 0, 1, 2);
-    ctx.fillRect((x + 2) | 0, (y - 1) | 0, 1, 2);
-    // 導火線・火花
-    ctx.fillStyle = COL.goldDk;
-    ctx.fillRect((x - 1) | 0, (y - f.r - 2) | 0, 2, 2);
-    const sp = 1 + Math.sin(f.fuse);
-    ctx.fillStyle = COL.gold;
-    ctx.fillRect((x - 1) | 0, (y - f.r - 4 - sp) | 0, 2, 2);
+    ctx.ellipse(x, y, w, f.r * 0.6, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = "rgba(0,0,0,0.22)";
+    ctx.beginPath();
+    ctx.ellipse(x, y + f.r * 0.25, w, f.r * 0.35, 0, 0, Math.PI);
+    ctx.fill();
+    // 底のライト(点滅)
+    const on = Math.sin(f.blink) > 0;
+    ctx.fillStyle = on ? COL.gold : COL.pink;
+    ctx.fillRect((x - w * 0.7) | 0, (y + 1) | 0, 2, 2);
+    ctx.fillStyle = on ? COL.cyan : COL.gold;
+    ctx.fillRect((x - 1) | 0, (y + 2) | 0, 2, 2);
+    ctx.fillStyle = on ? COL.pink : COL.cyan;
+    ctx.fillRect((x + w * 0.7 - 2) | 0, (y + 1) | 0, 2, 2);
   }
 
   function drawBall(b) {
@@ -483,31 +481,30 @@
     ctx.fillRect((b.x - b.r * 0.4) | 0, (b.y - b.r * 0.4) | 0, 1, 1);
   }
 
-  function drawFlower(f) {
-    const x = f.x;
-    if (!f.alive) {
-      ctx.strokeStyle = "#4a7a26";
-      ctx.lineWidth = 2;
-      ctx.beginPath();
-      ctx.moveTo(x, GROUND_Y + 6);
-      ctx.lineTo(x + 3, GROUND_Y + 1);
-      ctx.stroke();
+  function drawPerson(p) {
+    const x = p.x;
+    if (!p.alive) {
+      ctx.fillStyle = "#9aa0a6";
+      ctx.fillRect(x - 1, GROUND_Y - 5, 3, 11);
+      ctx.fillRect(x - 3, GROUND_Y - 2, 7, 2);
       return;
     }
-    ctx.strokeStyle = "#2f8f22";
-    ctx.lineWidth = 2;
-    ctx.beginPath();
-    ctx.moveTo(x, GROUND_Y + 6);
-    ctx.lineTo(x, GROUND_Y - 4);
-    ctx.stroke();
-    const cy = GROUND_Y - 7;
-    ctx.fillStyle = COL.pink;
-    ctx.fillRect(x - 4, cy - 1, 3, 3);
-    ctx.fillRect(x + 2, cy - 1, 3, 3);
-    ctx.fillRect(x - 1, cy - 4, 3, 3);
-    ctx.fillRect(x - 1, cy + 2, 3, 3);
-    ctx.fillStyle = COL.gold;
-    ctx.fillRect(x - 1, cy - 1, 3, 3);
+    const baseY = GROUND_Y + 6;
+    ctx.fillStyle = "#2f3a6b";
+    ctx.fillRect(x - 2, baseY - 4, 2, 4);
+    ctx.fillRect(x + 1, baseY - 4, 2, 4);
+    ctx.fillStyle = COL.red;
+    ctx.fillRect(x - 3, baseY - 9, 6, 6);
+    const wave = Math.sin(elapsed * 0.15 + x) > 0 ? -1 : 0;
+    ctx.fillRect(x - 4, baseY - 9, 1, 4);
+    ctx.fillRect(x + 3, baseY - 9 + wave, 1, 4);
+    ctx.fillStyle = "#ffcf9e";
+    ctx.fillRect(x - 2, baseY - 14, 5, 5);
+    ctx.fillStyle = "#5a3a1a";
+    ctx.fillRect(x - 2, baseY - 15, 5, 2);
+    ctx.fillStyle = "#000";
+    ctx.fillRect(x - 1, baseY - 12, 1, 1);
+    ctx.fillRect(x + 1, baseY - 12, 1, 1);
   }
 
   function drawSlingshot() {
@@ -518,7 +515,7 @@
     ctx.lineWidth = 3;
     ctx.lineCap = "round";
     ctx.beginPath();
-    ctx.moveTo(A.x, A.y + 12);
+    ctx.moveTo(A.x, GROUND_Y + 10);
     ctx.lineTo(A.x, A.y);
     ctx.lineTo(L.x, L.y);
     ctx.moveTo(A.x, A.y);
@@ -545,7 +542,6 @@
     }
   }
 
-  // 軌道予測: 背景に埋もれないよう黒縁+黄ドットで描く
   function drawTrajectory(px, py) {
     let x = px, y = py;
     let vx = -pull.x * LAUNCH_POWER;
@@ -567,10 +563,9 @@
     ctx.font = "8px 'DotGothic16', monospace";
     ctx.textAlign = "left";
     pixelText("SCORE " + score, 4, 9, COL.white, "#000");
-
     ctx.textAlign = "right";
-    const alive = flowers.filter((f) => f.alive).length;
-    pixelTextRight("FLOWER " + alive + "/" + FLOWER_COUNT, W - 4, 9,
+    const alive = people.filter((p) => p.alive).length;
+    pixelTextRight("HUMAN " + alive + "/" + PEOPLE_COUNT, W - 4, 9,
       alive <= 1 ? COL.red : COL.white, "#000");
   }
 
@@ -613,7 +608,7 @@
     return { x: (cx / rect.width) * W, y: (cy / rect.height) * H };
   }
   function onDown(e) {
-    if (state !== "playing") return;
+    if (state !== "playing" || menuOpen) return;
     e.preventDefault();
     Sound.init();
     aiming = true;
@@ -647,30 +642,71 @@
   view.addEventListener("touchend", onUp, { passive: false });
 
   // ============================================================
-  // 状態遷移
+  // フルスクリーン
+  // ============================================================
+  function enterFullscreen() {
+    const req = stage.requestFullscreen || stage.webkitRequestFullscreen;
+    if (req) { try { req.call(stage); } catch (e) {} }
+  }
+  function toggleFullscreen() {
+    const fsEl = document.fullscreenElement || document.webkitFullscreenElement;
+    if (!fsEl) enterFullscreen();
+    else {
+      const exit = document.exitFullscreen || document.webkitExitFullscreen;
+      if (exit) exit.call(document);
+    }
+  }
+
+  // ============================================================
+  // 画面遷移
   // ============================================================
   function startGame() {
     Sound.init();
     resetGame();
     state = "playing";
-    overlay.classList.add("hidden");
+    menuOpen = false;
+    homeScreen.classList.add("hidden");
+    menuScreen.classList.add("hidden");
     gameoverScreen.classList.add("hidden");
+    menuBtn.classList.remove("hidden");
+    if (!didAutoFs) { didAutoFs = true; enterFullscreen(); } // 起動後の最初だけ
+  }
+  function goHome() {
+    state = "home";
+    menuOpen = false;
+    menuScreen.classList.add("hidden");
+    gameoverScreen.classList.add("hidden");
+    menuBtn.classList.add("hidden");
+    renderRanks(homeRanksEl);
+    homeScreen.classList.remove("hidden");
+  }
+  function openMenu() {
+    if (state !== "playing") return;
+    menuOpen = true;
+    menuScreen.classList.remove("hidden");
+  }
+  function closeMenu() {
+    menuOpen = false;
+    menuScreen.classList.add("hidden");
   }
   function endGame() {
     state = "gameover";
     Sound.over();
-    if (score > best) {
-      best = score;
-      localStorage.setItem(BEST_KEY, String(best));
-    }
+    saveScore(score);
     finalScoreEl.textContent = score;
-    bestScoreEl.textContent = best;
+    renderRanks(goRanksEl, score);
+    menuBtn.classList.add("hidden");
     gameoverScreen.classList.remove("hidden");
   }
 
   startBtn.addEventListener("click", startGame);
   retryBtn.addEventListener("click", startGame);
-  bestScoreEl.textContent = best;
+  resumeBtn.addEventListener("click", closeMenu);
+  homeBtn.addEventListener("click", goHome);
+  toHomeBtn.addEventListener("click", goHome);
+  fsBtn.addEventListener("click", toggleFullscreen);
+  menuBtn.addEventListener("click", () => (menuOpen ? closeMenu() : openMenu()));
 
+  renderRanks(homeRanksEl);
   loop();
 })();

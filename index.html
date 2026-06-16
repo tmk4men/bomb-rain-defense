@@ -7,13 +7,13 @@
   <meta http-equiv="Pragma" content="no-cache" />
   <meta http-equiv="Expires" content="0" />
   <title>ボムレイン・ディフェンス</title>
-  <meta name="description" content="空から降るボム兵を撃ち落として花ばたけを守るドット絵アクションゲーム。パチンコで狙い撃ち、コンボでハイスコアを目指せ！" />
+  <meta name="description" content="空から襲来するUFOを撃ち落として人々を守るドット絵アクションゲーム。パチンコで狙い撃ち、コンボでハイスコアを目指せ！" />
 
   <!-- Open Graph Protocol -->
   <meta property="og:type" content="website" />
   <meta property="og:site_name" content="ボムレイン・ディフェンス" />
   <meta property="og:title" content="ボムレイン・ディフェンス（BOMB RAIN DEFENSE）" />
-  <meta property="og:description" content="空から降るボム兵を撃ち落として花ばたけを守れ！ ドット絵のブラウザゲーム。" />
+  <meta property="og:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
   <meta property="og:url" content="https://tmk4men.github.io/bomb-rain-defense/" />
   <meta property="og:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
   <meta property="og:image:width" content="1200" />
@@ -24,41 +24,51 @@
   <!-- Twitter Card -->
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:title" content="ボムレイン・ディフェンス（BOMB RAIN DEFENSE）" />
-  <meta name="twitter:description" content="空から降るボム兵を撃ち落として花ばたけを守れ！ ドット絵のブラウザゲーム。" />
+  <meta name="twitter:description" content="空から襲来するUFOを撃ち落として人々を守れ！ ドット絵のブラウザゲーム。" />
   <meta name="twitter:image" content="https://tmk4men.github.io/bomb-rain-defense/og-image.png" />
 
   <meta name="theme-color" content="#0d0a1f" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=2" />
+  <link rel="stylesheet" href="style.css?v=5" />
 </head>
 <body>
   <div class="crt">
     <div id="app">
-      <h1>BOMB RAIN</h1>
-      <p class="subtitle">ボムレイン・ディフェンス</p>
-
       <div id="stage">
         <canvas id="game" width="480" height="642"></canvas>
 
-        <!-- スタート画面 -->
-        <div id="overlay" class="screen">
+        <!-- ハンバーガーメニューボタン(ゲーム中のみ表示) -->
+        <button id="menuBtn" class="menu-btn hidden" aria-label="メニュー" title="メニュー">
+          <span></span><span></span><span></span>
+        </button>
+
+        <!-- ホーム画面 -->
+        <div id="home" class="screen">
+          <div class="home-inner">
+            <h1>BOMB RAIN</h1>
+            <p class="subtitle">ボムレイン・ディフェンス</p>
+            <p class="ranks-title">BEST 3</p>
+            <ol id="homeRanks" class="ranks"></ol>
+            <button id="startBtn">START</button>
+          </div>
+        </div>
+
+        <!-- メニュー(あそびかた) -->
+        <div id="menu" class="screen hidden">
           <div class="panel">
             <h2>あそびかた</h2>
             <ul>
-              <li>パチンコの玉を<b>ドラッグで引いて離す</b>と発射！</li>
-              <li>玉は<b>貫通</b>。1発で複数倒すと<b>コンボ得点</b>（最大×5）。</li>
-              <li>空から降る<b>ボムへい</b>を撃ち落として<b>花ばたけ</b>を守れ。</li>
-              <li>花に当たると花が枯れる。全部枯れたら<b>ゲームオーバー</b>。</li>
+              <li>玉を<b>引いて離す</b>と発射（貫通）。</li>
+              <li><b>UFO</b>を撃ち落として<b>人々</b>を守れ。</li>
+              <li>全員やられたら<b>ゲームオーバー</b>。</li>
             </ul>
-            <div class="legend">
-              <div class="lg"><span class="ico ico-bomb"></span>ノーマル 100</div>
-              <div class="lg"><span class="ico ico-fast"></span>スピード 150</div>
-              <div class="lg"><span class="ico ico-armor"></span>てつ甲 ×2発 300</div>
-              <div class="lg"><span class="ico ico-gold"></span>ゴールド 500</div>
+            <div class="menu-actions">
+              <button id="resumeBtn">とじる</button>
+              <button id="fsBtn" class="btn-sm">フルスクリーン</button>
+              <button id="homeBtn" class="btn-sm">ホームへ</button>
             </div>
-            <button id="startBtn">START</button>
           </div>
         </div>
 
@@ -67,14 +77,16 @@
           <div class="panel">
             <h2>GAME OVER</h2>
             <p class="score-line">SCORE <span id="finalScore">0</span></p>
-            <p class="score-line best">BEST <span id="bestScore">0</span></p>
+            <p class="ranks-title">BEST 3</p>
+            <ol id="goRanks" class="ranks"></ol>
             <button id="retryBtn">RETRY</button>
+            <button id="toHomeBtn" class="btn-sm">ホームへ</button>
           </div>
         </div>
       </div>
     </div>
   </div>
 
-  <script src="game.js?v=2"></script>
+  <script src="game.js?v=5"></script>
 </body>
 </html>
