@@ -198,6 +198,8 @@
   let people = [];
   let ballId = 1;
   let shake = 0;
+  let nightFactor = 0; // 0=昼, 1=夜（難易度で上昇）
+  let skyFactor = 0;   // 実際に描画に使う係数（ホームは常に1）
 
   let aiming = false;
   let pull = { x: 0, y: 0 };
@@ -230,6 +232,7 @@
   function resetGame() {
     score = 0;
     elapsed = 0;
+    nightFactor = 0;
     spawnTimer = 90; // 開始直後は少し待ってから
     fallers = [];
     balls = [];
@@ -372,6 +375,7 @@
     if (state !== "playing" || menuOpen) return;
     elapsed++;
     if (shake > 0) shake--;
+    nightFactor = difficulty(); // 難易度に合わせて夜へ
 
     spawnTimer--;
     const diff = difficulty();
@@ -451,7 +455,8 @@
   // ============================================================
   function draw() {
     tick++;
-    const night = state === "home";
+    const home = state === "home";
+    skyFactor = home ? 1 : nightFactor; // 難易度で昼→夜
 
     let ox = 0, oy = 0;
     if (shake > 0) {
@@ -459,23 +464,23 @@
       oy = (Math.cos(elapsed * 1.9) * shake * 0.6) | 0;
     }
 
-    drawSky(night);
+    drawSky(skyFactor);
     drawClouds();
-    if (night) drawStarsMoon();
+    if (skyFactor > 0.04) drawStarsMoon(skyFactor);
 
     ctx.save();
     ctx.translate(ox, oy);
 
-    ctx.fillStyle = night ? "#3f6a3a" : "#5fae34";
+    ctx.fillStyle = lerpColor("#5fae34", "#34532b", skyFactor);
     ctx.fillRect(0, GROUND_Y + 4, W, H - GROUND_Y);
-    ctx.fillStyle = night ? "#56933f" : "#7bd047";
+    ctx.fillStyle = lerpColor("#7bd047", "#4a7a38", skyFactor);
     ctx.fillRect(0, GROUND_Y + 4, W, 3);
     ctx.fillStyle = "#2c5a1c";
     for (let x = 0; x < W; x += 6) {
       ctx.fillRect(x + ((x / 6) % 2), GROUND_Y + 10, 2, 2);
     }
 
-    if (night) {
+    if (home) {
       drawHomeUfos();
       drawDecorPeople();
     } else {
@@ -510,32 +515,33 @@
     vctx.drawImage(buf, 0, 0, W, H, dispX, dispY, dispW, dispH);
   }
 
-  function drawSky(night) {
-    const bands = night
-      ? ["#0a1430", "#11214a", "#1c3160", "#27406e", "#34527f"]
-      : ["#243b6b", "#33538f", "#4a72b0", "#7aa3d0", "#bfe0ef"];
-    const h = Math.ceil(GROUND_Y / bands.length);
-    for (let i = 0; i < bands.length; i++) {
-      ctx.fillStyle = bands[i];
+  // 昼(day)→夜(night)を係数fで補間
+  const DAY_BANDS = ["#243b6b", "#33538f", "#4a72b0", "#7aa3d0", "#bfe0ef"];
+  const NIGHT_BANDS = ["#0a1430", "#11214a", "#1c3160", "#27406e", "#34527f"];
+  function drawSky(f) {
+    const h = Math.ceil(GROUND_Y / DAY_BANDS.length);
+    for (let i = 0; i < DAY_BANDS.length; i++) {
+      ctx.fillStyle = lerpColor(DAY_BANDS[i], NIGHT_BANDS[i], f);
       ctx.fillRect(0, i * h, W, h + 1);
     }
   }
 
-  // ホーム背景: 星と月
-  function drawStarsMoon() {
+  // 星と月（fが大きいほどはっきり見える）
+  function drawStarsMoon(f) {
     for (const s of stars) {
       const tw = reduceMotion ? 0.8 : 0.45 + 0.55 * Math.sin(tick * 0.05 + s.ph);
-      ctx.globalAlpha = Math.max(0.15, tw);
+      ctx.globalAlpha = Math.max(0.15, tw) * f;
       ctx.fillStyle = "#ffffff";
       ctx.fillRect((s.nx * W) | 0, (s.ny * GROUND_Y) | 0, s.s, s.s);
     }
-    ctx.globalAlpha = 1;
+    ctx.globalAlpha = f;
     const mx = (W * 0.82) | 0, my = (GROUND_Y * 0.2) | 0, mr = Math.max(7, (H * 0.05) | 0);
     disc(mx, my, mr, "#f3eeb6");
     ctx.fillStyle = "rgba(0,0,0,0.12)";
     ctx.fillRect(mx - 2, my - 1, 2, 2);
     ctx.fillRect(mx + 1, my + 2, 2, 2);
     ctx.fillRect(mx - 3, my + 2, 1, 1);
+    ctx.globalAlpha = 1;
   }
 
   // ホーム背景: 漂うUFO(ビーム付き)
@@ -570,7 +576,9 @@
   }
 
   function drawClouds() {
-    ctx.fillStyle = "rgba(255,255,255,0.85)";
+    const a = 0.85 * (1 - skyFactor * 0.7); // 夜は雲を薄く
+    if (a <= 0.02) return;
+    ctx.fillStyle = "rgba(255,255,255," + a.toFixed(2) + ")";
     const t = (reduceMotion ? 0 : tick) * 0.08;
     const cs = [
       { x: 24, y: 26, s: 1 },
@@ -594,6 +602,17 @@
     ctx.beginPath();
     ctx.arc(x, y, r, 0, Math.PI * 2);
     ctx.fill();
+  }
+
+  // 2色を t(0..1) で線形補間
+  function lerpColor(a, b, t) {
+    const ah = parseInt(a.slice(1), 16), bh = parseInt(b.slice(1), 16);
+    const ar = (ah >> 16) & 255, ag = (ah >> 8) & 255, ab = ah & 255;
+    const br = (bh >> 16) & 255, bg = (bh >> 8) & 255, bb = bh & 255;
+    const r = Math.round(ar + (br - ar) * t);
+    const g = Math.round(ag + (bg - ag) * t);
+    const bl = Math.round(ab + (bb - ab) * t);
+    return "rgb(" + r + "," + g + "," + bl + ")";
   }
 
   function drawUFO(f) {
@@ -713,11 +732,16 @@
   function drawHUD() {
     ctx.font = "8px 'DotGothic16', monospace";
     ctx.textAlign = "left";
-    // 右上はハンバーガーボタンがあるので、HUDは左に2段で表示
-    pixelText("SCORE " + score, 4, 9, COL.white, "#000");
     const alive = people.filter((p) => p.alive).length;
-    pixelText("HUMAN " + alive + "/" + PEOPLE_COUNT, 4, 20,
-      alive <= 1 ? COL.red : COL.white, "#000");
+    const s1 = "SCORE " + score;
+    const s2 = "HUMAN " + alive + "/" + PEOPLE_COUNT;
+    // 背景に下地を敷いて常に読めるように
+    const w = Math.ceil(Math.max(ctx.measureText(s1).width, ctx.measureText(s2).width));
+    ctx.fillStyle = "rgba(0,0,0,0.42)";
+    ctx.fillRect(2, 2, w + 7, 22);
+    // 右上はハンバーガーボタンがあるので、HUDは左に2段で表示
+    pixelText(s1, 5, 11, COL.white, "#000");
+    pixelText(s2, 5, 21, alive <= 1 ? COL.red : COL.white, "#000");
   }
 
   function pixelText(text, x, y, color, outline) {
