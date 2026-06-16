@@ -1,0 +1,64 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <title>ボムレイン・ディフェンス</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="crt">
+    <div id="app">
+      <h1>BOMB RAIN</h1>
+      <p class="subtitle">ボムレイン・ディフェンス</p>
+
+      <div id="stage">
+        <canvas id="game" width="480" height="642"></canvas>
+
+        <!-- スタート画面 -->
+        <div id="overlay" class="screen">
+          <div class="panel">
+            <h2>あそびかた</h2>
+            <ul>
+              <li>パチンコの玉を<b>ドラッグで引いて離す</b>と発射！</li>
+              <li>空から降る<b>ボムへい</b>を撃ち落として<b>花ばたけ</b>を守れ。</li>
+              <li>花に当たると花が枯れる。全部枯れたら<b>ゲームオーバー</b>。</li>
+            </ul>
+            <div class="legend">
+              <div class="lg"><span class="ico ico-bomb"></span>ノーマル 100</div>
+              <div class="lg"><span class="ico ico-fast"></span>スピード 150</div>
+              <div class="lg"><span class="ico ico-armor"></span>てつ甲 ×2発</div>
+              <div class="lg"><span class="ico ico-gold"></span>ゴールド 500</div>
+              <div class="lg"><span class="ico ico-heart"></span>ハート 花復活</div>
+              <div class="lg"><span class="ico ico-star"></span>スター 玉強化</div>
+              <div class="lg"><span class="ico ico-freeze"></span>フリーズ 減速</div>
+              <div class="lg"><span class="ico ico-nuke"></span>ドカン 全消し</div>
+            </div>
+            <button id="startBtn">START</button>
+          </div>
+        </div>
+
+        <!-- ゲームオーバー画面 -->
+        <div id="gameover" class="screen hidden">
+          <div class="panel">
+            <h2>GAME OVER</h2>
+            <p class="score-line">SCORE <span id="finalScore">0</span></p>
+            <p class="score-line best">BEST <span id="bestScore">0</span></p>
+            <button id="retryBtn">RETRY</button>
+          </div>
+        </div>
+      </div>
+
+      <p class="credit">
+        『スーパーマリオ64DS』のミニゲーム「ボムへいたいさくせん」に着想を得た<br />
+        オリジナル作品 ／ HTML5 Canvas + JavaScript 製
+      </p>
+    </div>
+  </div>
+
+  <script src="game.js"></script>
+</body>
+</html>

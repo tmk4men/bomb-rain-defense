@@ -1,0 +1,225 @@
+:root {
+  --ink: #1b1030;
+  --sky: #0d0a1f;
+  --gold: #ffd23e;
+  --gold-dk: #b8851a;
+  --pink: #ff5fa2;
+  --frame: #2b1d4d;
+  --frame-lt: #4a3380;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", sans-serif;
+  background:
+    radial-gradient(circle at 50% 0%, #241640 0%, #0b0818 70%);
+  color: #fff;
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  padding: 14px;
+  image-rendering: pixelated;
+}
+
+/* CRT 風スキャンライン */
+.crt {
+  position: relative;
+  width: 100%;
+  max-width: 480px;
+}
+.crt::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: repeating-linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0) 0px,
+    rgba(0, 0, 0, 0) 2px,
+    rgba(0, 0, 0, 0.14) 3px
+  );
+  z-index: 50;
+  mix-blend-mode: multiply;
+}
+
+#app {
+  width: 100%;
+  text-align: center;
+}
+
+h1 {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1.5rem;
+  line-height: 1.2;
+  color: var(--gold);
+  letter-spacing: 1px;
+  text-shadow:
+    0 0 0 #000,
+    3px 3px 0 #d6342b,
+    6px 6px 0 rgba(0, 0, 0, 0.45);
+  margin-top: 4px;
+}
+
+.subtitle {
+  font-size: 1rem;
+  letter-spacing: 0.25em;
+  color: #cdb6ff;
+  margin: 10px 0 12px;
+}
+
+#stage {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 480 / 642;
+  /* ピクセル風の枠 */
+  border: 4px solid var(--gold);
+  box-shadow:
+    0 0 0 4px var(--frame),
+    0 0 0 8px #000,
+    0 12px 0 8px rgba(0, 0, 0, 0.4);
+  overflow: hidden;
+  background: #87ceeb;
+}
+
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
+  touch-action: none;
+  cursor: crosshair;
+}
+
+/* ----- オーバーレイ画面 ----- */
+.screen {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(8, 6, 22, 0.82);
+}
+.screen.hidden {
+  display: none;
+}
+
+.panel {
+  position: relative;
+  background: var(--frame);
+  border: 4px solid var(--gold);
+  box-shadow:
+    0 0 0 4px #000,
+    inset 0 0 0 2px var(--frame-lt);
+  padding: 20px 18px;
+  width: 90%;
+  max-width: 380px;
+}
+
+.panel h2 {
+  font-family: "Press Start 2P", monospace;
+  font-size: 1rem;
+  color: var(--gold);
+  margin-bottom: 14px;
+  text-shadow: 2px 2px 0 #d6342b;
+}
+
+.panel ul {
+  text-align: left;
+  font-size: 0.9rem;
+  line-height: 1.8;
+  margin: 0 0 14px;
+  padding-left: 16px;
+}
+.panel b {
+  color: var(--gold);
+}
+
+/* 凡例グリッド */
+.legend {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px 10px;
+  text-align: left;
+  font-size: 0.82rem;
+  margin-bottom: 18px;
+  padding: 10px;
+  background: rgba(0, 0, 0, 0.3);
+  border: 2px solid var(--frame-lt);
+}
+.lg {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+}
+.ico {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  image-rendering: pixelated;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.6);
+}
+.ico-bomb { background: #1c1c1c; border-radius: 50%; }
+.ico-fast { background: #3aa0ff; border-radius: 50%; }
+.ico-armor { background: #9aa6bd; border-radius: 50%; box-shadow: inset 0 0 0 2px #5c6a85; }
+.ico-gold { background: #ffd23e; border-radius: 50%; box-shadow: inset 0 0 0 2px #b8851a; }
+.ico-heart { background: var(--pink); clip-path: polygon(50% 100%, 0 35%, 25% 0, 50% 22%, 75% 0, 100% 35%); }
+.ico-star { background: var(--gold); clip-path: polygon(50% 0, 61% 35%, 98% 35%, 68% 57%, 79% 91%, 50% 70%, 21% 91%, 32% 57%, 2% 35%, 39% 35%); }
+.ico-freeze { background: #7ef0ff; clip-path: polygon(50% 0,60% 40%,100% 50%,60% 60%,50% 100%,40% 60%,0 50%,40% 40%); }
+.ico-nuke { background: #ff7a1a; border-radius: 50%; box-shadow: inset 0 0 0 2px #ffd23e; }
+
+.score-line {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.85rem;
+  margin: 8px 0;
+}
+.score-line span {
+  color: var(--gold);
+}
+.score-line.best span {
+  color: #7ef0ff;
+}
+
+/* ----- ピクセル風ボタン ----- */
+button {
+  font-family: "Press Start 2P", monospace;
+  font-size: 0.95rem;
+  color: var(--ink);
+  background: var(--gold);
+  border: none;
+  padding: 14px 30px;
+  margin-top: 10px;
+  cursor: pointer;
+  box-shadow:
+    0 0 0 4px #000,
+    0 6px 0 0 var(--gold-dk),
+    0 6px 0 4px #000;
+  transition: transform 0.05s, box-shadow 0.05s;
+}
+button:hover {
+  filter: brightness(1.08);
+}
+button:active {
+  transform: translateY(6px);
+  box-shadow:
+    0 0 0 4px #000,
+    0 0 0 0 var(--gold-dk);
+}
+
+.credit {
+  font-size: 0.72rem;
+  opacity: 0.6;
+  margin-top: 14px;
+  line-height: 1.7;
+}
