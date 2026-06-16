@@ -20,21 +20,20 @@ body {
 
 body {
   font-family: "DotGothic16", "Hiragino Kaku Gothic ProN", sans-serif;
-  background: radial-gradient(circle at 50% 0%, #241640 0%, #0b0818 70%);
+  background: #0b0818;
   color: #fff;
-  min-height: 100vh;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 14px;
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
   image-rendering: pixelated;
 }
 
-/* CRT 風スキャンライン */
+/* CRT 風スキャンライン — 画面全体 */
 .crt {
   position: relative;
-  width: 100%;
-  max-width: 480px;
+  width: 100vw;
+  height: 100vh;
+  height: 100dvh;
 }
 .crt::after {
   content: "";
@@ -53,19 +52,15 @@ body {
 
 #app {
   width: 100%;
+  height: 100%;
   text-align: center;
 }
 
-/* ----- ゲーム画面(ステージ) ----- */
+/* ----- ゲーム画面(ステージ) — 画面全体に広げる ----- */
 #stage {
   position: relative;
   width: 100%;
-  aspect-ratio: 480 / 642;
-  border: 4px solid var(--gold);
-  box-shadow:
-    0 0 0 4px var(--frame),
-    0 0 0 8px #000,
-    0 12px 0 8px rgba(0, 0, 0, 0.4);
+  height: 100%;
   overflow: hidden;
   background: #243b6b;
 }

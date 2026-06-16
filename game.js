@@ -13,9 +13,10 @@
   const view = document.getElementById("game");
   const vctx = view.getContext("2d");
 
-  // ---- 解像度: 論理(ドット)空間 W×H をSCALE倍で表示 ----
-  const W = 160;
-  const H = 214;
+  // ---- 解像度: 論理(ドット)空間 W×H。画面サイズに応じて可変(レスポンシブ) ----
+  let W = 160;
+  let H = 214;
+  const TARGET_H = 240; // 論理の縦解像度の目安。横は画面比に合わせて変化させる
 
   const buf = document.createElement("canvas");
   buf.width = W;
@@ -40,7 +41,7 @@
   const goRanksEl = document.getElementById("goRanks");
 
   // ---- 定数(ドット空間) ----
-  const GROUND_Y = H - 30;
+  let GROUND_Y = H - 30;
   const ANCHOR = { x: W / 2, y: GROUND_Y - 22 };
   const MAX_PULL = 36;
   const LAUNCH_POWER = 0.2;
@@ -186,11 +187,36 @@
     pull = { x: 0, y: 0 };
 
     people = [];
-    const margin = 24;
-    const gap = (W - margin * 2) / (PEOPLE_COUNT - 1);
-    for (let i = 0; i < PEOPLE_COUNT; i++) {
-      people.push({ x: Math.round(margin + gap * i), alive: true });
-    }
+    for (let i = 0; i < PEOPLE_COUNT; i++) people.push({ x: 0, alive: true });
+    reflowPeople();
+  }
+
+  // 画面サイズに応じてレイアウトを再計算(レスポンシブ)
+  function reflowPeople() {
+    if (!people.length) return;
+    const margin = Math.round(W * 0.14);
+    const span = Math.max(1, W - margin * 2);
+    const gap = span / (PEOPLE_COUNT - 1);
+    for (let i = 0; i < PEOPLE_COUNT; i++) people[i].x = Math.round(margin + gap * i);
+  }
+  function layout() {
+    GROUND_Y = H - Math.round(H * 0.14);
+    ANCHOR.x = W / 2;
+    ANCHOR.y = GROUND_Y - Math.round(H * 0.10);
+    reflowPeople();
+  }
+  function resize() {
+    const cssW = Math.max(1, stage.clientWidth || window.innerWidth);
+    const cssH = Math.max(1, stage.clientHeight || window.innerHeight);
+    const scale = cssH / TARGET_H;       // CSS px / 論理px
+    H = Math.max(180, Math.round(cssH / scale));
+    W = Math.max(120, Math.round(cssW / scale));
+    buf.width = W;
+    buf.height = H;
+    view.width = cssW;
+    view.height = cssH;
+    vctx.imageSmoothingEnabled = false;
+    layout();
   }
 
   // ============================================================
@@ -206,8 +232,8 @@
     const def = TYPES[type];
     const x = 16 + Math.random() * (W - 32);
     const diff = Math.min(elapsed / 3600, 1);
-    let speed = 0.28 + diff * 0.6 + Math.random() * 0.18;
-    if (type === "fast") speed *= 1.7;
+    let speed = 0.17 + diff * 0.4 + Math.random() * 0.11; // ゆっくりめ
+    if (type === "fast") speed *= 1.6;
     fallers.push({
       type, def,
       x, baseX: x,
@@ -707,6 +733,12 @@
   fsBtn.addEventListener("click", toggleFullscreen);
   menuBtn.addEventListener("click", () => (menuOpen ? closeMenu() : openMenu()));
 
+  window.addEventListener("resize", resize);
+  window.addEventListener("orientationchange", resize);
+  document.addEventListener("fullscreenchange", resize);
+  document.addEventListener("webkitfullscreenchange", resize);
+
   renderRanks(homeRanksEl);
+  resize();
   loop();
 })();
