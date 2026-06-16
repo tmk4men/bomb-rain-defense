@@ -36,7 +36,7 @@
 ## パッケージ名
 
 ```
-io.github.tmk4men.ufosmash
+app.ufosmashh
 ```
 
 ## ローカルで動かす
