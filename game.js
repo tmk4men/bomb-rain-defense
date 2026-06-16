@@ -48,6 +48,9 @@
   const ANCHOR = { x: W / 2, y: GROUND_Y - 22 };
   const MAX_PULL_X = 64; // 左右に大きく引ける
   const MAX_PULL_Y = 46;
+  const MAX_ASPECT = 1.7; // 横長になりすぎないよう論理アスペクト比を制限
+  // 表示(レターボックス)用
+  let dispX = 0, dispY = 0, dispW = 0, dispH = 0;
   const LAUNCH_POWER = 0.2;
   const GRAVITY = 0.085;
   const BALL_R = 3;
@@ -200,6 +203,7 @@
   let pull = { x: 0, y: 0 };
 
   // ---- ホーム画面の背景演出 ----
+  const reduceMotion = !!(window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   let tick = 0; // 状態に関わらず毎フレーム進むアニメ用カウンタ
   const stars = [];
   const homeUfos = [];
@@ -259,12 +263,20 @@
     const cssH = Math.max(1, stage.clientHeight || window.innerHeight);
     const scale = cssH / TARGET_H;       // CSS px / 論理px
     H = Math.max(180, Math.round(cssH / scale));
-    W = Math.max(120, Math.round(cssW / scale));
+    let w = Math.round(cssW / scale);
+    w = Math.min(w, Math.round(H * MAX_ASPECT)); // 横長すぎを制限
+    W = Math.max(120, w);
     buf.width = W;
     buf.height = H;
     view.width = cssW;
     view.height = cssH;
     vctx.imageSmoothingEnabled = false;
+    // アスペクト維持のレターボックス
+    const sc = Math.min(view.width / W, view.height / H);
+    dispW = Math.round(W * sc);
+    dispH = Math.round(H * sc);
+    dispX = Math.floor((view.width - dispW) / 2);
+    dispY = Math.floor((view.height - dispH) / 2);
     layout();
   }
 
@@ -493,8 +505,9 @@
     if (state === "playing") drawHUD();
 
     vctx.imageSmoothingEnabled = false;
-    vctx.clearRect(0, 0, view.width, view.height);
-    vctx.drawImage(buf, 0, 0, W, H, 0, 0, view.width, view.height);
+    vctx.fillStyle = "#000";
+    vctx.fillRect(0, 0, view.width, view.height);
+    vctx.drawImage(buf, 0, 0, W, H, dispX, dispY, dispW, dispH);
   }
 
   function drawSky(night) {
@@ -511,7 +524,7 @@
   // ホーム背景: 星と月
   function drawStarsMoon() {
     for (const s of stars) {
-      const tw = 0.45 + 0.55 * Math.sin(tick * 0.05 + s.ph);
+      const tw = reduceMotion ? 0.8 : 0.45 + 0.55 * Math.sin(tick * 0.05 + s.ph);
       ctx.globalAlpha = Math.max(0.15, tw);
       ctx.fillStyle = "#ffffff";
       ctx.fillRect((s.nx * W) | 0, (s.ny * GROUND_Y) | 0, s.s, s.s);
@@ -528,10 +541,11 @@
   // ホーム背景: 漂うUFO(ビーム付き)
   function drawHomeUfos() {
     const range = W + 80;
+    const tk = reduceMotion ? 0 : tick;
     for (const u of homeUfos) {
-      u.x = ((u.start * range + tick * u.speed) % range) - 40;
+      u.x = ((u.start * range + tk * u.speed) % range) - 40;
       u.y = u.ny * GROUND_Y;
-      u.blink = tick * 0.2;
+      u.blink = reduceMotion ? 1 : tick * 0.2;
       const w = u.r * 2.0;
       ctx.fillStyle = "rgba(126,240,255,0.12)";
       ctx.beginPath();
@@ -557,7 +571,7 @@
 
   function drawClouds() {
     ctx.fillStyle = "rgba(255,255,255,0.85)";
-    const t = tick * 0.08;
+    const t = (reduceMotion ? 0 : tick) * 0.08;
     const cs = [
       { x: 24, y: 26, s: 1 },
       { x: 110, y: 46, s: 1.3 },
@@ -699,10 +713,10 @@
   function drawHUD() {
     ctx.font = "8px 'DotGothic16', monospace";
     ctx.textAlign = "left";
+    // 右上はハンバーガーボタンがあるので、HUDは左に2段で表示
     pixelText("SCORE " + score, 4, 9, COL.white, "#000");
-    ctx.textAlign = "right";
     const alive = people.filter((p) => p.alive).length;
-    pixelTextRight("HUMAN " + alive + "/" + PEOPLE_COUNT, W - 4, 9,
+    pixelText("HUMAN " + alive + "/" + PEOPLE_COUNT, 4, 20,
       alive <= 1 ? COL.red : COL.white, "#000");
   }
 
@@ -740,9 +754,15 @@
   // ============================================================
   function pointerPos(e) {
     const rect = view.getBoundingClientRect();
-    const cx = (e.touches ? e.touches[0].clientX : e.clientX) - rect.left;
-    const cy = (e.touches ? e.touches[0].clientY : e.clientY) - rect.top;
-    return { x: (cx / rect.width) * W, y: (cy / rect.height) * H };
+    // CSS表示サイズ→backing(=cssと同じ)→レターボックス補正→論理座標
+    const sx = view.width / rect.width;
+    const sy = view.height / rect.height;
+    const cx = ((e.touches ? e.touches[0].clientX : e.clientX) - rect.left) * sx;
+    const cy = ((e.touches ? e.touches[0].clientY : e.clientY) - rect.top) * sy;
+    return {
+      x: (cx - dispX) / Math.max(1, dispW) * W,
+      y: (cy - dispY) / Math.max(1, dispH) * H,
+    };
   }
   function onDown(e) {
     if (state !== "playing" || menuOpen) return;
@@ -824,10 +844,12 @@
     menuOpen = true;
     if (homeBtn) homeBtn.style.display = state === "playing" ? "" : "none"; // ホームでは「ホームへ」を隠す
     menuScreen.classList.remove("hidden");
+    menuBtn.setAttribute("aria-expanded", "true");
   }
   function closeMenu() {
     menuOpen = false;
     menuScreen.classList.add("hidden");
+    menuBtn.setAttribute("aria-expanded", "false");
   }
   function endGame() {
     state = "gameover";
@@ -850,8 +872,13 @@
         const o = shareBtn.textContent;
         shareBtn.textContent = "コピーしました！";
         setTimeout(() => { shareBtn.textContent = o; }, 1400);
-      }).catch(() => {});
+      }).catch(() => fallbackShare(text));
+    } else {
+      fallbackShare(text);
     }
+  }
+  function fallbackShare(text) {
+    try { window.prompt("コピーしてシェアしてね", text); } catch (e) {}
   }
 
   startBtn.addEventListener("click", startGame);
@@ -863,6 +890,7 @@
   fsBtn.addEventListener("click", toggleFullscreen);
   menuBtn.addEventListener("click", () => (menuOpen ? closeMenu() : openMenu()));
   if (bgmBtn) bgmBtn.addEventListener("click", toggleBgm);
+  document.addEventListener("keydown", (e) => { if (e.key === "Escape" && menuOpen) closeMenu(); });
 
   window.addEventListener("resize", resize);
   window.addEventListener("orientationchange", resize);

@@ -78,17 +78,17 @@ canvas {
 /* ----- ハンバーガーメニューボタン ----- */
 .menu-btn {
   position: absolute;
-  top: 8px;
-  right: 8px;
+  top: calc(8px + env(safe-area-inset-top, 0px));
+  right: calc(8px + env(safe-area-inset-right, 0px));
   z-index: 60;
-  width: 34px;
-  height: 30px;
+  width: 44px;
+  height: 44px;
   margin: 0;
-  padding: 7px 6px;
+  padding: 11px 9px;
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 4px;
+  gap: 5px;
   background: rgba(20, 16, 40, 0.85);
   border: none;
   box-shadow: 0 0 0 2px #000, 0 0 0 4px var(--gold);
@@ -253,7 +253,7 @@ h1 {
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 9px;
 }
 
 .score-line {
@@ -296,5 +296,19 @@ button:active {
 }
 .btn-sm {
   font-size: 0.95rem;
-  padding: 10px 16px;
+  padding: 11px 18px;
+  min-height: 44px;
+}
+
+/* キーボード操作時のフォーカス可視化 */
+button:focus-visible {
+  outline: 3px solid #7ef0ff;
+  outline-offset: 2px;
+}
+
+/* 動きを減らす設定の尊重: CRTスキャンラインを無効化 */
+@media (prefers-reduced-motion: reduce) {
+  .crt::after {
+    display: none;
+  }
 }
