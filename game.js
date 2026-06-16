@@ -42,6 +42,7 @@
   const finalScoreEl = document.getElementById("finalScore");
   const homeRanksEl = document.getElementById("homeRanks");
   const goRanksEl = document.getElementById("goRanks");
+  const newBestEl = document.getElementById("newBest");
 
   // ---- 定数(ドット空間) ----
   let GROUND_Y = H - 30;
@@ -72,6 +73,18 @@
     ufo:  { score: 100, r: 6, color: COL.metal, accent: COL.cyan },
     fast: { score: 150, r: 5, color: COL.blue,  accent: COL.white },
   };
+
+  // ---- 中毒性まわりの調整値 ----
+  const COMBO_WINDOW = 150; // この間に撃墜しないとコンボ途切れ(約2.5秒)
+  const FEVER_TIME = 360;   // フィーバー継続フレーム
+  const FEVER_GAIN = 0.05;  // 1撃でフィーバーゲージ加算
+  function comboMult(c) { return Math.min(1 + Math.floor(c / 3), 9); }
+  function comboColor(c) {
+    if (c >= 20) return "#ff5fa2";
+    if (c >= 10) return "#ff7a1a";
+    if (c >= 5) return "#ffd23e";
+    return "#7ef0ff";
+  }
 
   // ============================================================
   // ハイスコア(上位3件)
@@ -152,7 +165,23 @@
     return {
       init,
       shoot() { tone(680, 0.12, "square", 0.12, 220); },
-      hit() { noise(0.18, 0.22, 1600); tone(420, 0.14, "square", 0.1, 120); },
+      hit(step) { // コンボでピッチ上昇
+        step = step || 0;
+        noise(0.14, 0.2, 1600);
+        tone(380 + step * 45, 0.12, "square", 0.12, 130 + step * 30);
+      },
+      milestone() { tone(880, 0.09, "square", 0.16); tone(1320, 0.12, "square", 0.16, null, 0.09); },
+      fever() {
+        tone(523, 0.1, "square", 0.16, null, 0);
+        tone(659, 0.1, "square", 0.16, null, 0.1);
+        tone(784, 0.1, "square", 0.16, null, 0.2);
+        tone(1047, 0.2, "square", 0.16, null, 0.3);
+      },
+      best() {
+        tone(659, 0.12, "square", 0.16, null, 0);
+        tone(784, 0.12, "square", 0.16, null, 0.12);
+        tone(1047, 0.25, "square", 0.16, null, 0.24);
+      },
       lost() { noise(0.25, 0.2, 800); tone(200, 0.3, "sawtooth", 0.16, 60); },
       over() {
         tone(440, 0.2, "square", 0.16, null, 0);
@@ -200,6 +229,12 @@
   let shake = 0;
   let nightFactor = 0; // 0=昼, 1=夜（難易度で上昇）
   let skyFactor = 0;   // 実際に描画に使う係数（ホームは常に1）
+  // 中毒性まわり
+  let combo = 0, comboTimer = 0, comboPop = 0;
+  let feverGauge = 0, fever = false, feverTime = 0;
+  let hitStop = 0, alarm = 0, dangerActive = false;
+  let milestone = { text: "", life: 0 };
+  let isNewBest = false;
 
   let aiming = false;
   let pull = { x: 0, y: 0 };
@@ -233,6 +268,11 @@
     score = 0;
     elapsed = 0;
     nightFactor = 0;
+    combo = 0; comboTimer = 0; comboPop = 0;
+    feverGauge = 0; fever = false; feverTime = 0;
+    hitStop = 0; alarm = 0; dangerActive = false;
+    milestone = { text: "", life: 0 };
+    isNewBest = false;
     spawnTimer = 90; // 開始直後は少し待ってから
     fallers = [];
     balls = [];
@@ -357,6 +397,34 @@
     floats.push({ x, y, text, color: color || COL.white, life: 50 });
   }
 
+  function setMilestone(t) { milestone = { text: t, life: 64 }; }
+  function checkMilestone(c) {
+    const m = { 5: "NICE!", 10: "GREAT!", 20: "AWESOME!", 30: "INSANE!", 50: "GODLIKE!" };
+    if (m[c]) { setMilestone(m[c]); Sound.milestone(); }
+  }
+  function startFever() {
+    fever = true; feverTime = FEVER_TIME; feverGauge = 1;
+    setMilestone("FEVER!!"); shake = Math.max(shake, 6); Sound.fever();
+  }
+
+  // UFO撃墜時の処理（コンボ/フィーバー/手応え）
+  function onKill(f) {
+    combo++;
+    comboTimer = COMBO_WINDOW;
+    comboPop = 1;
+    const mult = comboMult(combo);
+    const fm = fever ? 2 : 1;
+    const gained = f.def.score * mult * fm;
+    score += gained;
+    addFloat(f.x, f.y, "+" + gained, fever ? COL.gold : COL.white);
+    burst(f.x, f.y, fever ? COL.gold : COL.cyan, fever ? 20 : 14, 2.6 + mult * 0.2);
+    hitStop = 2; // 一瞬停止
+    shake = Math.max(shake, Math.min(2 + mult * 0.6, 7));
+    Sound.hit(Math.min(combo, 12));
+    if (!fever) { feverGauge += FEVER_GAIN; if (feverGauge >= 1) startFever(); }
+    checkMilestone(combo);
+  }
+
   // 線分と点の最短距離 <= rad ?（スイープ当たり判定）
   function segHit(ax, ay, bx, by, cx, cy, rad) {
     const dx = bx - ax, dy = by - ay;
@@ -373,9 +441,19 @@
   // ============================================================
   function update() {
     if (state !== "playing" || menuOpen) return;
+    if (hitStop > 0) { hitStop--; return; } // 命中時の一瞬停止(手応え)
     elapsed++;
     if (shake > 0) shake--;
+    if (comboPop > 0) comboPop -= 0.08;
+    if (alarm > 0) alarm--;
+    if (milestone.life > 0) milestone.life--;
     nightFactor = difficulty(); // 難易度に合わせて夜へ
+
+    // コンボ持続
+    if (comboTimer > 0) { comboTimer--; if (comboTimer === 0) combo = 0; }
+    // フィーバー
+    if (fever) { feverTime--; if (feverTime <= 0) { fever = false; feverGauge = 0; } }
+    else if (feverGauge > 0) feverGauge = Math.max(0, feverGauge - 0.0015);
 
     spawnTimer--;
     const diff = difficulty();
@@ -386,12 +464,16 @@
     }
 
     // UFO
+    dangerActive = false;
     for (const f of fallers) {
       f.y += f.vy;
       f.sway += f.swaySpeed;
       f.x = f.baseX + Math.sin(f.sway) * f.swayAmp;
       f.x = Math.max(8, Math.min(W - 8, f.x));
       f.blink += 0.2;
+
+      // 地上に迫ったら危険演出
+      if (f.y > GROUND_Y - 30) dangerActive = true;
 
       if (f.y >= GROUND_Y) {
         let target = null, bd = 999;
@@ -402,8 +484,11 @@
         }
         if (target && bd < 22) {
           target.alive = false;
-          burst(target.x, GROUND_Y, COL.red, 20, 3);
-          shake = 6;
+          burst(target.x, GROUND_Y, COL.red, 22, 3.4);
+          shake = 7;
+          alarm = 22;
+          combo = 0; comboTimer = 0; // 被弾でコンボ途切れ
+          feverGauge = Math.max(0, feverGauge - 0.34);
           Sound.lost();
         }
         burst(f.x, GROUND_Y, f.def.accent, 10, 2);
@@ -424,13 +509,7 @@
         if (segHit(x0, y0, ball.x, ball.y, f.x, f.y, f.r + ball.r)) {
           f.hitBy.add(ball.id);
           f.dead = true;
-          ball.kills++;
-          const mult = Math.min(ball.kills, 5);
-          const gained = f.def.score * mult;
-          score += gained;
-          addFloat(f.x, f.y, "+" + gained + (mult > 1 ? " x" + mult : ""), COL.white);
-          burst(f.x, f.y, COL.cyan, 14, 2.6);
-          Sound.hit();
+          onKill(f);
         }
       }
       fallers = fallers.filter((f) => !f.dead);
@@ -505,8 +584,77 @@
     vctx.drawImage(buf, 0, 0, W, H, dispX, dispY, dispW, dispH);
 
     // 文字は高解像度(表示キャンバス)に直接描いて読みやすく
+    if (state === "playing") drawEffectsView();
     drawFloatsView();
     if (state === "playing") drawHUDView();
+  }
+
+  // コンボ/フィーバー/危険などの演出(高解像度)
+  function drawEffectsView() {
+    const cw = view.width, ch = view.height;
+
+    // 危険/被弾ビネット(赤い縁)
+    const dlevel = Math.max(alarm / 22, dangerActive ? 0.5 : 0);
+    if (dlevel > 0.01) {
+      const pulse = reduceMotion ? 0.8 : 0.6 + 0.4 * Math.sin(tick * 0.4);
+      const a = (alarm > 0 ? 0.55 : 0.3) * dlevel * pulse;
+      const t = Math.max(8, Math.round(ch * 0.035));
+      vctx.fillStyle = "rgba(233,79,79," + a.toFixed(2) + ")";
+      vctx.fillRect(0, 0, cw, t);
+      vctx.fillRect(0, ch - t, cw, t);
+      vctx.fillRect(0, 0, t, ch);
+      vctx.fillRect(cw - t, 0, t, ch);
+    }
+
+    // フィーバー全体タント
+    if (fever) {
+      const a = reduceMotion ? 0.1 : 0.08 + 0.05 * Math.sin(tick * 0.3);
+      vctx.fillStyle = "rgba(255,210,62," + a.toFixed(2) + ")";
+      vctx.fillRect(0, 0, cw, ch);
+      const fs = Math.max(18, Math.round(ch * 0.05));
+      vctx.font = "700 " + fs + "px 'DotGothic16',sans-serif";
+      vctx.textAlign = "center"; vctx.textBaseline = "top";
+      viewText("FEVER!! x2", cw / 2, ch * 0.05, "#ffd23e", fs);
+    }
+
+    // コンボ表示
+    const mult = comboMult(combo);
+    if (combo >= 2) {
+      const fs = Math.max(22, Math.round(ch * 0.058));
+      const pop = 1 + Math.max(0, comboPop) * 0.5;
+      vctx.save();
+      vctx.translate(cw / 2, ch * 0.2);
+      vctx.scale(pop, pop);
+      vctx.textAlign = "center"; vctx.textBaseline = "middle";
+      vctx.font = "700 " + fs + "px 'DotGothic16',sans-serif";
+      viewText("x" + mult, 0, 0, fever ? "#ffd23e" : comboColor(combo), fs);
+      const fs2 = Math.round(fs * 0.42);
+      vctx.font = "700 " + fs2 + "px 'DotGothic16',sans-serif";
+      viewText(combo + " COMBO", 0, fs * 0.72, "#ffffff", fs2);
+      vctx.restore();
+    }
+
+    // マイルストーン
+    if (milestone.life > 0) {
+      const fs = Math.max(22, Math.round(ch * 0.07));
+      vctx.font = "700 " + fs + "px 'DotGothic16',sans-serif";
+      vctx.textAlign = "center"; vctx.textBaseline = "middle";
+      vctx.globalAlpha = Math.min(1, milestone.life / 20);
+      viewText(milestone.text, cw / 2, ch * 0.36, "#ffd23e", fs);
+      vctx.globalAlpha = 1;
+    }
+
+    // フィーバーゲージ(非フィーバー時、HUDの下)
+    if (!fever && feverGauge > 0.02) {
+      const m = Math.round(ch * 0.012) + 6;
+      const fsH = Math.max(13, Math.round(ch * 0.026));
+      const bx = dispX + m, by = dispY + m + fsH * 2 + 16;
+      const bw = Math.round(cw * 0.3), bh = Math.max(6, Math.round(ch * 0.013));
+      vctx.fillStyle = "rgba(0,0,0,0.5)";
+      vctx.fillRect(bx - 2, by - 2, bw + 4, bh + 4);
+      vctx.fillStyle = "#7ef0ff";
+      vctx.fillRect(bx, by, Math.round(bw * feverGauge), bh);
+    }
   }
 
   // 表示キャンバス用の縁取りテキスト
@@ -899,10 +1047,13 @@
   }
   function endGame() {
     state = "gameover";
-    Sound.over();
+    const prevBest = scores[0] || 0;
     saveScore(score);
+    isNewBest = score > 0 && score > prevBest;
+    if (isNewBest) Sound.best(); else Sound.over();
     finalScoreEl.textContent = score;
     renderRanks(goRanksEl, score);
+    if (newBestEl) newBestEl.classList.toggle("hidden", !isNewBest);
     menuBtn.classList.add("hidden");
     gameoverScreen.classList.remove("hidden");
   }

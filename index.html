@@ -37,7 +37,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=DotGothic16&family=Press+Start+2P&display=swap" rel="stylesheet" />
-  <link rel="stylesheet" href="style.css?v=12" />
+  <link rel="stylesheet" href="style.css?v=13" />
 </head>
 <body>
   <div class="crt">
@@ -82,6 +82,7 @@
         <div id="gameover" class="screen hidden">
           <div class="panel">
             <h2>GAME OVER</h2>
+            <p id="newBest" class="new-best hidden">★ NEW BEST! ★</p>
             <p class="score-line">SCORE <span id="finalScore">0</span></p>
             <p class="ranks-title">BEST 3</p>
             <ol id="goRanks" class="ranks"></ol>
@@ -97,6 +98,6 @@
   </div>
 
   <audio id="bgm" src="bgm.mp3" loop preload="auto"></audio>
-  <script src="game.js?v=12"></script>
+  <script src="game.js?v=13"></script>
 </body>
 </html>
