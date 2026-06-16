@@ -496,23 +496,60 @@
     ctx.globalAlpha = 1;
 
     drawSlingshot();
-
-    ctx.font = "8px 'DotGothic16', monospace";
-    ctx.textAlign = "center";
-    for (const t of floats) {
-      ctx.globalAlpha = Math.min(1, t.life / 24);
-      pixelText(t.text, t.x | 0, t.y | 0, t.color, "#000");
-    }
-    ctx.globalAlpha = 1;
-
     ctx.restore();
 
-    if (state === "playing") drawHUD();
-
+    // バッファ(ドット絵)を拡大表示
     vctx.imageSmoothingEnabled = false;
     vctx.fillStyle = "#000";
     vctx.fillRect(0, 0, view.width, view.height);
     vctx.drawImage(buf, 0, 0, W, H, dispX, dispY, dispW, dispH);
+
+    // 文字は高解像度(表示キャンバス)に直接描いて読みやすく
+    drawFloatsView();
+    if (state === "playing") drawHUDView();
+  }
+
+  // 表示キャンバス用の縁取りテキスト
+  function viewText(text, x, y, color, fs) {
+    vctx.lineJoin = "round";
+    vctx.lineWidth = Math.max(2, fs * 0.2);
+    vctx.strokeStyle = "rgba(0,0,0,0.9)";
+    vctx.strokeText(text, x, y);
+    vctx.fillStyle = color;
+    vctx.fillText(text, x, y);
+  }
+
+  function drawHUDView() {
+    const fs = Math.max(13, Math.round(view.height * 0.026));
+    vctx.font = "700 " + fs + "px 'DotGothic16','Hiragino Kaku Gothic ProN',sans-serif";
+    vctx.textBaseline = "top";
+    vctx.textAlign = "left";
+    const alive = people.filter((p) => p.alive).length;
+    const s1 = "SCORE " + score;
+    const s2 = "HUMAN " + alive + "/" + PEOPLE_COUNT;
+    const m = Math.round(view.height * 0.012) + 6;
+    const x = dispX + m;
+    const y = dispY + m;
+    const w = Math.max(vctx.measureText(s1).width, vctx.measureText(s2).width);
+    vctx.fillStyle = "rgba(0,0,0,0.45)";
+    vctx.fillRect(x - 5, y - 4, w + 12, fs * 2 + 14);
+    viewText(s1, x, y, "#ffffff", fs);
+    viewText(s2, x, y + fs + 6, alive <= 1 ? "#ff6a5a" : "#ffffff", fs);
+  }
+
+  function drawFloatsView() {
+    if (!floats.length) return;
+    const fs = Math.max(12, Math.round(view.height * 0.026));
+    vctx.font = "700 " + fs + "px 'DotGothic16','Hiragino Kaku Gothic ProN',sans-serif";
+    vctx.textBaseline = "alphabetic";
+    vctx.textAlign = "center";
+    for (const t of floats) {
+      const vx = dispX + (t.x / W) * dispW;
+      const vy = dispY + (t.y / H) * dispH;
+      vctx.globalAlpha = Math.min(1, t.life / 24);
+      viewText(t.text, vx, vy, t.color, fs);
+    }
+    vctx.globalAlpha = 1;
   }
 
   // 昼(day)→夜(night)を係数fで補間
@@ -727,21 +764,6 @@
         ctx.fillRect(ix, iy, 1, 1);
       }
     }
-  }
-
-  function drawHUD() {
-    ctx.font = "8px 'DotGothic16', monospace";
-    ctx.textAlign = "left";
-    const alive = people.filter((p) => p.alive).length;
-    const s1 = "SCORE " + score;
-    const s2 = "HUMAN " + alive + "/" + PEOPLE_COUNT;
-    // 背景に下地を敷いて常に読めるように
-    const w = Math.ceil(Math.max(ctx.measureText(s1).width, ctx.measureText(s2).width));
-    ctx.fillStyle = "rgba(0,0,0,0.42)";
-    ctx.fillRect(2, 2, w + 7, 22);
-    // 右上はハンバーガーボタンがあるので、HUDは左に2段で表示
-    pixelText(s1, 5, 11, COL.white, "#000");
-    pixelText(s2, 5, 21, alive <= 1 ? COL.red : COL.white, "#000");
   }
 
   function pixelText(text, x, y, color, outline) {
