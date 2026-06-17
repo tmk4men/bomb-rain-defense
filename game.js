@@ -44,6 +44,70 @@
   const goRanksEl = document.getElementById("goRanks");
   const newBestEl = document.getElementById("newBest");
 
+  // ============================================================
+  // 多言語対応(ストア/端末の言語に合わせて日本語/英語を切替)
+  // ============================================================
+  const LANG =
+    ((navigator.languages && navigator.languages[0]) ||
+      navigator.language ||
+      navigator.userLanguage ||
+      "en")
+      .toLowerCase()
+      .indexOf("ja") === 0
+      ? "ja"
+      : "en";
+  const STR = {
+    ja: {
+      title: "UFOスマッシュ！",
+      howtoTitle: "あそびかた",
+      howto: [
+        "玉を<b>引いて離す</b>と発射（貫通）。",
+        "<b>UFO</b>を撃ち落として<b>人々</b>を守れ。",
+        "全員やられたら<b>ゲームオーバー</b>。",
+      ],
+      close: "とじる",
+      fullscreen: "フルスクリーン",
+      home: "ホームへ",
+      credit: "製作者 @ktomo_dev",
+      menu: "メニュー",
+      shareText: (s) => "UFOスマッシュ！でスコア " + s + "点を出した！🛸",
+      shareTitle: "UFOスマッシュ！",
+      sharePrompt: "コピーしてシェアしてね",
+    },
+    en: {
+      title: "UFO SMASH!",
+      howtoTitle: "HOW TO PLAY",
+      howto: [
+        "<b>Drag &amp; release</b> to launch (piercing).",
+        "Shoot down <b>UFOs</b> to protect the <b>people</b>.",
+        "Lose everyone and it's <b>GAME OVER</b>.",
+      ],
+      close: "CLOSE",
+      fullscreen: "FULLSCREEN",
+      home: "HOME",
+      credit: "Made by @ktomo_dev",
+      menu: "Menu",
+      shareText: (s) => "I scored " + s + " in UFO SMASH! 🛸",
+      shareTitle: "UFO SMASH!",
+      sharePrompt: "Copy and share!",
+    },
+  };
+  const T = STR[LANG];
+  function localizeUI() {
+    document.documentElement.lang = LANG;
+    document.title = T.title;
+    const setText = (id, txt) => { const el = document.getElementById(id); if (el) el.textContent = txt; };
+    const setHTML = (id, html) => { const el = document.getElementById(id); if (el) el.innerHTML = html; };
+    setText("howtoTitle", T.howtoTitle);
+    setHTML("howtoList", T.howto.map((s) => "<li>" + s + "</li>").join(""));
+    setText("resumeBtn", T.close);
+    setText("fsBtn", T.fullscreen);
+    setText("homeBtn", T.home);
+    setText("creditLink", T.credit);
+    const mb = document.getElementById("menuBtn");
+    if (mb) { mb.setAttribute("aria-label", T.menu); mb.setAttribute("title", T.menu); }
+  }
+
   // ---- 定数(ドット空間) ----
   let GROUND_Y = H - 30;
   const ANCHOR = { x: W / 2, y: GROUND_Y - 22 };
@@ -56,6 +120,7 @@
   const GRAVITY = 0.085;
   const BALL_R = 3;
   const PEOPLE_COUNT = 4;
+  const PANIC_SPEED = 0.6; // 残り1人が左右に逃げ回る速さ(ゆっくりめ)
   const SCORE_KEY = "bombRainScores";
 
   const COL = {
@@ -526,7 +591,23 @@
     for (const t of floats) { t.y -= 0.5; t.life--; }
     floats = floats.filter((t) => t.life > 0);
 
-    if (!people.some((p) => p.alive)) endGame();
+    // 残り1人になったら焦って左右に逃げ回る(足はゆっくりめ)
+    let aliveCount = 0;
+    for (const p of people) if (p.alive) aliveCount++;
+    if (aliveCount === 1) {
+      const lo = 8, hi = W - 8;
+      for (const p of people) {
+        if (!p.alive) continue;
+        if (!p.panic) { p.panic = true; p.vx = (p.x < W / 2 ? 1 : -1) * PANIC_SPEED; p.runPhase = 0; }
+        p.x += p.vx;
+        if (p.x <= lo) { p.x = lo; p.vx = PANIC_SPEED; }
+        else if (p.x >= hi) { p.x = hi; p.vx = -PANIC_SPEED; }
+        else if (Math.random() < 0.012) p.vx = -p.vx; // 急に向きを変える
+        p.runPhase += 0.45;
+      }
+    }
+
+    if (aliveCount === 0) endGame();
   }
 
   // ============================================================
@@ -854,14 +935,28 @@
       return;
     }
     const baseY = GROUND_Y + 6;
+    const panic = !!p.panic;
+    // 脚: パニック時は左右に開いて走るストライド
     ctx.fillStyle = "#2f3a6b";
-    ctx.fillRect(x - 2, baseY - 4, 2, 4);
-    ctx.fillRect(x + 1, baseY - 4, 2, 4);
+    if (panic) {
+      const stride = Math.sin(p.runPhase || 0) > 0;
+      ctx.fillRect(x - 3, baseY - 4, 2, stride ? 4 : 2);
+      ctx.fillRect(x + 1, baseY - 4, 2, stride ? 2 : 4);
+    } else {
+      ctx.fillRect(x - 2, baseY - 4, 2, 4);
+      ctx.fillRect(x + 1, baseY - 4, 2, 4);
+    }
     ctx.fillStyle = COL.red;
     ctx.fillRect(x - 3, baseY - 9, 6, 6);
-    const wave = Math.sin(tick * 0.15 + x) > 0 ? -1 : 0;
-    ctx.fillRect(x - 4, baseY - 9, 1, 4);
-    ctx.fillRect(x + 3, baseY - 9 + wave, 1, 4);
+    if (panic) {
+      // 両手を上げてあわてる
+      ctx.fillRect(x - 4, baseY - 13, 1, 4);
+      ctx.fillRect(x + 3, baseY - 13, 1, 4);
+    } else {
+      const wave = Math.sin(tick * 0.15 + x) > 0 ? -1 : 0;
+      ctx.fillRect(x - 4, baseY - 9, 1, 4);
+      ctx.fillRect(x + 3, baseY - 9 + wave, 1, 4);
+    }
     ctx.fillStyle = "#ffcf9e";
     ctx.fillRect(x - 2, baseY - 14, 5, 5);
     ctx.fillStyle = "#5a3a1a";
@@ -1070,9 +1165,9 @@
   // スコア共有(URLを含めてSNSでフィーチャーグラフィックのOGカードが出るように)
   const SHARE_URL = "https://tmk4men.github.io/bomb-rain-defense/";
   function shareScore() {
-    const text = "UFOスマッシュ！でスコア " + score + "点を出した！🛸";
+    const text = T.shareText(score);
     if (navigator.share) {
-      navigator.share({ title: "UFOスマッシュ！", text, url: SHARE_URL }).catch(() => {});
+      navigator.share({ title: T.shareTitle, text, url: SHARE_URL }).catch(() => {});
     } else if (navigator.clipboard && navigator.clipboard.writeText) {
       navigator.clipboard.writeText(text + "\n" + SHARE_URL).then(() => {
         if (!shareBtn) return;
@@ -1085,7 +1180,7 @@
     }
   }
   function fallbackShare(text) {
-    try { window.prompt("コピーしてシェアしてね", text); } catch (e) {}
+    try { window.prompt(T.sharePrompt, text); } catch (e) {}
   }
 
   startBtn.addEventListener("click", startGame);
@@ -1117,6 +1212,7 @@
   // visibilitychange が来ないケース(アプリ終了など)の保険
   window.addEventListener("pagehide", () => { if (bgm) bgm.pause(); });
 
+  localizeUI();
   updateBgmBtn();
   renderRanks(homeRanksEl);
   initHomeDecor();
