@@ -1125,6 +1125,7 @@
     homeScreen.classList.add("hidden");
     menuScreen.classList.add("hidden");
     gameoverScreen.classList.add("hidden");
+    AdBridge.hideBanner(); // アプリ版: プレイ開始でバナーを隠す
     menuBtn.classList.remove("hidden");
     if (!didAutoFs) { didAutoFs = true; enterFullscreen(); } // 起動後の最初だけ
   }
@@ -1133,6 +1134,7 @@
     menuOpen = false;
     menuScreen.classList.add("hidden");
     gameoverScreen.classList.add("hidden");
+    AdBridge.hideBanner(); // アプリ版: ホームでバナーを隠す
     menuBtn.classList.remove("hidden"); // ホームでもメニューを出す
     renderRanks(homeRanksEl);
     homeScreen.classList.remove("hidden");
@@ -1160,6 +1162,7 @@
     if (newBestEl) newBestEl.classList.toggle("hidden", !isNewBest);
     menuBtn.classList.add("hidden");
     gameoverScreen.classList.remove("hidden");
+    AdBridge.showBanner(); // アプリ版: スコア画面にバナー表示(ブラウザではno-op)
   }
 
   // スコア共有(URLを含めてSNSでフィーチャーグラフィックのOGカードが出るように)
@@ -1183,8 +1186,20 @@
     try { window.prompt(T.sharePrompt, text); } catch (e) {}
   }
 
+  // ===== ネイティブ広告ブリッジ(アプリ版のみ。ブラウザでは window.AndroidAds が無いので全てno-op) =====
+  const AdBridge = {
+    showBanner() { try { if (window.AndroidAds && AndroidAds.showBanner) AndroidAds.showBanner(); } catch (e) {} },
+    hideBanner() { try { if (window.AndroidAds && AndroidAds.hideBanner) AndroidAds.hideBanner(); } catch (e) {} },
+    // RETRY時に呼ぶ。trueが返るとネイティブが全画面広告を表示し、閉じたら window.__resumeRetry() を呼ぶ。
+    retry() { try { return !!(window.AndroidAds && AndroidAds.retry && AndroidAds.retry()); } catch (e) { return false; } },
+  };
+  window.__resumeRetry = startGame; // 広告を閉じた後にネイティブから呼ばれる(=次のプレイ開始)
+
   startBtn.addEventListener("click", startGame);
-  retryBtn.addEventListener("click", startGame);
+  retryBtn.addEventListener("click", () => {
+    // アプリ版: 2回に1回インタースティシャルを挟む。広告を出す時は閉じてから startGame。
+    if (!AdBridge.retry()) startGame();
+  });
   if (shareBtn) shareBtn.addEventListener("click", shareScore);
   resumeBtn.addEventListener("click", closeMenu);
   homeBtn.addEventListener("click", goHome);
